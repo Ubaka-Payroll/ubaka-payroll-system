@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Ubaka — shared API, desktop attendance app, and management portal",
   "scripts": {
-    "install:all": "npm install --prefix backend && npm install --prefix frontend && npm install --prefix portal && npm install",
+    "install:all": "npm install --prefix backend --legacy-peer-deps && npm install --prefix frontend --legacy-peer-deps && npm install --prefix portal && npm install",
     "dev:api": "npm run dev --prefix backend",
     "dev:desktop": "npm run dev --prefix frontend",
     "dev:portal": "npm run dev --prefix portal",
