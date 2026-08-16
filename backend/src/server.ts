@@ -7,9 +7,14 @@ import attendanceRoutes from './routes/attendanceRoutes'
 import fingerprintRoutes from './routes/fingerprintRoutes'
 import attendanceCalculationRoutes from './routes/attendanceCalculationRoutes'
 import reportRoutes from './routes/reportRoutes'
+import authRoutes from './routes/authRoutes'
+import adminRoutes from './routes/adminRoutes'
+import ownerRoutes from './routes/ownerRoutes'
 import { requestLogger } from './middleware/requestLogger'
 import { errorHandler } from './middleware/errorHandler'
 import { logger } from './utils/Logger'
+import swaggerUi from 'swagger-ui-express'
+import { openapiSpec } from './openapi'
 
 // Load environment variables
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || undefined })
@@ -56,7 +61,9 @@ app.get('/api', (req: Request, res: Response) => {
       attendance: '/api/attendance',
       anomalies: '/api/anomalies',
       reports: '/api/reports',
-      config: '/api/config',
+      auth: '/api/auth',
+      admin: '/api/admin',
+      owner: '/api/owner',
     },
   })
 })
@@ -67,6 +74,31 @@ app.use('/api/attendance', attendanceRoutes)
 app.use('/api/fingerprint', fingerprintRoutes)
 app.use('/api/attendance-calculation', attendanceCalculationRoutes)
 app.use('/api/reports', reportRoutes)
+app.use('/api/auth', authRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/owner', ownerRoutes)
+
+app.get('/api/openapi.json', (_req: Request, res: Response) => {
+  res.json(openapiSpec)
+})
+
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(openapiSpec as object, {
+    customSiteTitle: 'Ubaka API',
+  }),
+)
+
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const dbManager = DatabaseManager.getInstance()
+  const dbConnected = await dbManager.testConnection()
+  res.json({
+    ok: dbConnected,
+    service: 'ubaka-backend',
+    database: dbConnected ? 'connected' : 'disconnected',
+  })
+})
 
 // Error handling middleware (must be last)
 app.use(errorHandler)

@@ -5,8 +5,12 @@
             "path": "./backend"
         },
         {
-            "name": "🎨 Frontend",
+            "name": "🖥️ Desktop",
             "path": "./frontend"
+        },
+        {
+            "name": "🌐 Portal",
+            "path": "./portal"
         },
         {
             "name": "📁 Root",
@@ -27,7 +31,8 @@
         },
         "eslint.workingDirectories": [
             "./backend",
-            "./frontend"
+            "./frontend",
+            "./portal"
         ]
     }
 }

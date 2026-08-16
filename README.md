@@ -1,59 +1,42 @@
-# Ubaka Attendance Tracking System
+# Ubaka
 
-A comprehensive desktop application for managing worker attendance at construction sites (chantiers) using fingerprint biometric verification.
+Shared platform for construction site attendance: one PostgreSQL API, a Field Engineer desktop app, and a System Admin / Site Owner management portal.
 
 ## Project Structure
 
 ```
 ubaka-payroll-mis/
-├── backend/                    # Backend API (Node.js + Express + PostgreSQL)
+├── backend/                    # Shared API (Express + PostgreSQL)
 │   ├── src/
-│   │   ├── config/            # Database and app configuration
-│   │   ├── controllers/       # API route controllers
-│   │   ├── models/            # TypeScript type definitions
-│   │   ├── repositories/      # Data access layer
-│   │   ├── services/          # Business logic layer
-│   │   ├── utils/             # Helper functions
-│   │   └── server.ts          # Express server entry point
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/        # includes JWT auth for the portal
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── routes/            # workers, attendance, auth, admin, owner
+│   │   ├── services/
+│   │   └── server.ts
 │   ├── database/              # SQL schemas and migrations
-│   ├── config/                # Configuration files
-│   ├── logs/                  # Application logs
 │   └── package.json
 │
-├── frontend/                   # Frontend Desktop App (Electron + React)
-│   ├── electron/              # Electron main process
-│   │   ├── main.ts            # Electron entry point
-│   │   └── preload.ts         # IPC bridge
-│   ├── src/
-│   │   ├── components/        # Reusable React components
-│   │   ├── views/             # Page-level components
-│   │   ├── hooks/             # Custom React hooks
-│   │   ├── services/          # API client services
-│   │   ├── utils/             # Helper functions
-│   │   ├── types/             # TypeScript interfaces
-│   │   ├── styles/            # CSS files
-│   │   ├── App.tsx            # Root component
-│   │   ├── main.tsx           # React entry point
-│   │   └── index.html         # HTML template
-│   └── package.json
+├── frontend/                   # Desktop app (Electron + React) — Field Engineer
 │
-├── resources/                  # Static resources
-│   ├── icons/                 # Application icons
-│   ├── email-templates/       # Email HTML templates
-│   └── sdk/                   # Fingerprint scanner SDK
+├── portal/                     # Management portal (React) — Admin & Site Owner
 │
-├── data/                       # Runtime data (created at runtime)
-│   ├── database/              # Database backups
-│   ├── backups/               # System backups
-│   └── logs/                  # Application logs
+├── fingerprint-service/        # Local biometric scanner service
 │
-└── .kiro/                      # Project specifications
-    └── specs/
-        └── ubaka-attendance-tracking/
-            ├── requirements.md
-            ├── design.md
-            └── tasks.md
+└── resources/                  # Icons, email templates, SDK
 ```
+
+## Apps
+
+| App | Who | How to run |
+|-----|-----|------------|
+| **API** | shared | `npm run dev:api` → http://localhost:5000 |
+| **Desktop** | Field Engineer | `npm run dev:desktop` (Vite :3000 + Electron) |
+| **Portal** | System Admin & Site Owner | `npm run dev:portal` → http://localhost:5173 |
+
+Swagger: http://localhost:5000/api/docs
 
 ## Technology Stack
 
@@ -114,6 +97,13 @@ createuser ubaka_user
 
 # Run schema
 psql -d ubaka_attendance -f backend/database/schema.sql
+psql -d ubaka_attendance -f backend/database/migrations/002_portal.sql
+```
+
+Portal demo users (password `password123`): `admin@ubaka.site`, `owner@demo.site`
+
+```bash
+npm run seed:portal
 ```
 
 ### 3. Configure Environment Variables
@@ -244,7 +234,7 @@ npm run build
 - Multi-site support
 - Advanced analytics
 - Mobile applications
-- Web dashboard for owners
+- Payments / billing for subscriptions
 
 ## Development Workflow
 
