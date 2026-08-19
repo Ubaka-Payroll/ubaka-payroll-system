@@ -143,8 +143,7 @@ export class ReportService {
                 const daysLate = lateArrivals.filter(la => !la.waived).length
                 const totalHours = summaries.reduce((sum, s) => sum + (s.total_payable_hours || 0), 0)
                 const regularPay = summaries.reduce((sum, s) => sum + (s.regular_pay || 0), 0)
-                const deductions = summaries.reduce((sum, s) => sum + (s.total_deductions || 0), 0)
-                const netPay = summaries.reduce((sum, s) => sum + (s.net_pay || 0), 0)
+                const netPay = summaries.reduce((sum, s) => sum + (s.net_pay || s.regular_pay || 0), 0)
 
                 workerStats.push({
                     worker_id: worker.id,
@@ -155,7 +154,7 @@ export class ReportService {
                     days_late: daysLate,
                     total_hours: totalHours,
                     regular_pay: regularPay,
-                    deductions: deductions,
+                    deductions: 0,
                     net_pay: netPay,
                     late_percentage: daysPresent > 0 ? (daysLate / daysPresent) * 100 : 0
                 })
@@ -216,14 +215,13 @@ export class ReportService {
                 const stats = dailyStatsMap.get(date)!
                 stats.total++
                 stats.minutes.push(late.late_minutes)
-                stats.deductions += late.waived ? 0 : late.deduction_amount
             }
 
             const daily_stats = Array.from(dailyStatsMap.entries()).map(([date, stats]) => ({
                 date,
                 total_late: stats.total,
                 average_late_minutes: stats.minutes.reduce((a, b) => a + b, 0) / stats.total,
-                total_deductions: stats.deductions
+                total_deductions: 0
             })).sort((a, b) => a.date.localeCompare(b.date))
 
             // Worker statistics
@@ -250,7 +248,6 @@ export class ReportService {
                 const stats = workerStatsMap.get(late.worker_id)!
                 stats.lates.push(late)
                 stats.total_minutes += late.late_minutes
-                stats.total_deductions += late.waived ? 0 : late.deduction_amount
             }
 
             const worker_stats = Array.from(workerStatsMap.values()).map(stats => {
@@ -275,7 +272,7 @@ export class ReportService {
                     full_name: stats.full_name,
                     total_lates: lateCount,
                     average_late_minutes: avgMinutes,
-                    total_deductions: stats.total_deductions,
+                    total_deductions: 0,
                     trend
                 }
             }).sort((a, b) => b.total_lates - a.total_lates)
@@ -322,11 +319,7 @@ export class ReportService {
                 const totalHours = summaries.reduce((sum, s) => sum + (s.total_payable_hours || 0), 0)
                 const regularPay = summaries.reduce((sum, s) => sum + (s.regular_pay || 0), 0)
                 const overtimePay = summaries.reduce((sum, s) => sum + (s.overtime_pay || 0), 0)
-                const lateDeductions = summaries.reduce((sum, s) => sum + (s.late_deduction_amount || 0), 0)
-                const earlyDepartureDeductions = summaries.reduce((sum, s) => sum + (s.early_departure_deduction || 0), 0)
-                const totalDeductions = lateDeductions + earlyDepartureDeductions
                 const grossPay = regularPay + overtimePay
-                const netPay = grossPay - totalDeductions
 
                 workerData.push({
                     worker_number: worker.worker_number,
@@ -338,10 +331,10 @@ export class ReportService {
                     regular_pay: regularPay,
                     overtime_pay: overtimePay,
                     gross_pay: grossPay,
-                    late_deductions: lateDeductions,
-                    other_deductions: earlyDepartureDeductions,
-                    total_deductions: totalDeductions,
-                    net_pay: netPay
+                    late_deductions: 0,
+                    other_deductions: 0,
+                    total_deductions: 0,
+                    net_pay: grossPay
                 })
             }
 

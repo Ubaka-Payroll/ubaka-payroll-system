@@ -1,61 +1,102 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, KeyRound, FileText, Activity } from 'lucide-react'
-import { Alert, LoadingState, StatusBadge } from '../../components/ui'
+import {
+  Users,
+  CheckCircle2,
+  Activity,
+  Wallet,
+  HardHat,
+  KeyRound,
+  CalendarDays,
+  FileText,
+} from 'lucide-react'
+import { Alert, LoadingState, EmptyState, StatusBadge } from '../../components/ui'
+import AttendanceTable from '../../components/AttendanceTable'
 import { fetchOwnerOverview } from '../../services/api'
-import type { DailyReport, DailyReportMeta, Subscription } from '../../types'
+import { formatReportDate, formatWage, localDateString } from '../../lib/format'
+import type { DailyReport, DailyReportMeta, SiteSnapshot, Subscription } from '../../types'
 
 const OwnerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [site, setSite] = useState<SiteSnapshot | null>(null)
   const [stats, setStats] = useState({
     engineerCount: 0,
     activeEngineers: 0,
     keysAvailable: 0,
-    keysUsed: 0,
+    workerCount: 0,
   })
-  const [latest, setLatest] = useState<DailyReport | null>(null)
+  const [today, setToday] = useState<DailyReport | null>(null)
   const [recent, setRecent] = useState<DailyReportMeta[]>([])
 
   useEffect(() => {
     void load()
+    const id = window.setInterval(() => {
+      void load(true)
+    }, 60_000)
+    return () => window.clearInterval(id)
   }, [])
 
-  const load = async () => {
+  const load = async (silent = false) => {
     try {
-      setLoading(true)
-      setError(null)
+      if (!silent) {
+        setLoading(true)
+        setError(null)
+      }
       const data = await fetchOwnerOverview()
       setSubscription(data.subscription)
+      setSite(data.site)
       setStats({
         engineerCount: data.engineerCount,
         activeEngineers: data.activeEngineers,
         keysAvailable: data.keysAvailable,
-        keysUsed: data.keysUsed,
+        workerCount: data.workerCount,
       })
-      setLatest(data.latestReport)
+      setToday(data.todayReport)
       setRecent(data.recentReports)
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
         'Failed to load overview'
-      setError(message)
+      if (!silent) setError(message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   if (loading) return <LoadingState label="Loading owner portal…" />
 
+  const present = today?.workersPresent ?? 0
+  const completed = today?.completedShifts ?? 0
+  const active = today?.activeOnSite ?? 0
+  const wages = today?.totalWages ?? 0
+
   return (
     <div className="stack-gap">
-      {error && <Alert variant="error" message={error} actionLabel="Retry" onAction={load} />}
+      {error && <Alert variant="error" message={error} actionLabel="Retry" onAction={() => load()} />}
 
-      {subscription && (
+      <div className="toolbar" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+          <CalendarDays size={18} color="var(--text-muted)" />
+          <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+            {formatReportDate(localDateString())}
+          </span>
+        </div>
+      </div>
+
+      {site && (
         <div className="meta-chip">
-          {subscription.planName} · <StatusBadge status={subscription.status} /> · {subscription.seats}{' '}
-          seats
+          {site.siteName}
+          {site.siteLocation ? ` · ${site.siteLocation}` : ''}
+          {site.engineerName ? ` · ${site.engineerName}` : ''}
+          {` · ${site.openingTime}–${site.closingTime}`}
+          {subscription && (
+            <>
+              {' · '}
+              {subscription.planName} <StatusBadge status={subscription.status} />
+            </>
+          )}
         </div>
       )}
 
@@ -66,8 +107,17 @@ const OwnerDashboard: React.FC = () => {
               <Users size={18} />
             </div>
           </div>
-          <div className="stat-value">{stats.engineerCount}</div>
-          <div className="stat-label">Field engineers</div>
+          <div className="stat-value">{present}</div>
+          <div className="stat-label">Workers present</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__top">
+            <div className="stat-card__icon">
+              <CheckCircle2 size={18} />
+            </div>
+          </div>
+          <div className="stat-value">{completed}</div>
+          <div className="stat-label">Completed shifts</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__top">
@@ -75,71 +125,51 @@ const OwnerDashboard: React.FC = () => {
               <Activity size={18} />
             </div>
           </div>
-          <div className="stat-value">{stats.activeEngineers}</div>
-          <div className="stat-label">Active on sites</div>
+          <div className="stat-value">{active}</div>
+          <div className="stat-label">Active on site</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__top">
             <div className="stat-card__icon">
-              <KeyRound size={18} />
+              <Wallet size={18} />
             </div>
           </div>
-          <div className="stat-value">{stats.keysAvailable}</div>
-          <div className="stat-label">Keys available</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__top">
-            <div className="stat-card__icon">
-              <FileText size={18} />
-            </div>
+          <div className="stat-value stat-value--sm">
+            {wages.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </div>
-          <div className="stat-value">{recent.length}</div>
-          <div className="stat-label">Reports received</div>
+          <div className="stat-label">Total wages (RWF)</div>
         </div>
       </div>
 
-      {latest && (
-        <div className="panel">
-          <div className="panel__head">
-            <h2 className="panel__title">Latest daily report — {latest.siteName}</h2>
-            <Link to={`/owner/reports/${latest.id}`} className="btn btn-secondary">
-              Open
+      <div className="report-meta">
+        <Link to="/owner/workers">
+          <HardHat size={14} /> {stats.workerCount} workers on roster
+        </Link>
+        <Link to="/owner/engineers">
+          <Users size={14} /> {stats.activeEngineers}/{stats.engineerCount} engineers active
+        </Link>
+        <Link to="/owner/keys">
+          <KeyRound size={14} /> {stats.keysAvailable} keys available
+        </Link>
+      </div>
+
+      <div className="panel">
+        <div className="panel__head">
+          <h2 className="panel__title">Today&apos;s attendance</h2>
+          {today && (
+            <Link to={`/owner/reports/${today.id}`} className="btn btn-secondary">
+              Open report
             </Link>
-          </div>
-          <div className="panel__body">
-            <div className="report-meta">
-              <span>Date: {latest.reportDate}</span>
-              <span>Workers: {latest.workersPresent}</span>
-              <span>Completed: {latest.completedShifts}</span>
-              <span>Active: {latest.activeOnSite}</span>
-              <span>
-                Wages:{' '}
-                {latest.totalWages.toLocaleString('en-US', { maximumFractionDigits: 0 })} RWF
-              </span>
-            </div>
-            <div className="stats-grid stats-grid--4" style={{ marginBottom: 0 }}>
-              <div className="summary-stat">
-                <span className="stat-label">Present</span>
-                <div className="stat-value">{latest.workersPresent}</div>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-label">Completed</span>
-                <div className="stat-value">{latest.completedShifts}</div>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-label">Still on site</span>
-                <div className="stat-value">{latest.activeOnSite}</div>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-label">Total wages</span>
-                <div className="stat-value stat-value--sm">
-                  {latest.totalWages.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+        <div className="panel__body" style={{ padding: 0 }}>
+          <AttendanceTable
+            rows={today?.rows || []}
+            emptyTitle="No attendance yet today"
+            emptyDescription="Clock workers in on the Field Engineer desktop app. This table matches the desktop dashboard."
+          />
+        </div>
+      </div>
 
       <div className="panel">
         <div className="panel__head">
@@ -149,32 +179,42 @@ const OwnerDashboard: React.FC = () => {
           </Link>
         </div>
         <div className="panel__body" style={{ padding: 0 }}>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Site</th>
-                  <th>Workers</th>
-                  <th>Wages (RWF)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link to={`/owner/reports/${r.id}`}>
-                        <strong>{r.reportDate}</strong>
-                      </Link>
-                    </td>
-                    <td>{r.siteName}</td>
-                    <td>{r.workersPresent}</td>
-                    <td>{r.totalWages.toLocaleString('en-US')}</td>
+          {recent.length === 0 ? (
+            <EmptyState
+              icon={<FileText size={24} />}
+              title="No daily reports yet"
+              description="Attendance recorded on the desktop app becomes a daily report here."
+            />
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Site</th>
+                    <th>Engineer</th>
+                    <th>Workers</th>
+                    <th>Wages (RWF)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {recent.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <Link to={`/owner/reports/${r.id}`}>
+                          <strong>{r.reportDate}</strong>
+                        </Link>
+                      </td>
+                      <td>{r.siteName}</td>
+                      <td>{r.engineerName}</td>
+                      <td>{r.workersPresent}</td>
+                      <td>{formatWage(r.totalWages)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

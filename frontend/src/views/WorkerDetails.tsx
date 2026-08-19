@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Pencil, Trash2, Save, X, Clock3, Wallet } from 'lucide-react'
 import { workerService, Worker } from '../services/workerService'
 import { attendanceService } from '../services/attendanceService'
 import { Alert, LoadingState, EmptyState } from '../components/ui'
 import { useToast } from '../components/Toast'
+import ClassificationField, {
+  type ClassificationFieldHandle,
+} from '../components/ClassificationField'
 
 interface AttendanceRecord {
   date: string
@@ -24,6 +27,7 @@ const WorkerDetails: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [editData, setEditData] = useState<Partial<Worker>>({})
+  const classificationRef = useRef<ClassificationFieldHandle>(null)
 
   useEffect(() => {
     if (id) loadWorkerDetails()
@@ -59,12 +63,21 @@ const WorkerDetails: React.FC = () => {
 
   const handleSaveChanges = async () => {
     if (!worker) return
+    let classification = editData.classification
+    if (classification === 'OTHER') {
+      const committed = await classificationRef.current?.commitPending()
+      if (!committed) {
+        toast.error('Enter a name for the new classification')
+        return
+      }
+      classification = committed
+    }
     try {
       setLoading(true)
       await workerService.updateWorker(worker.id, {
         fullName: editData.full_name,
         phoneNumber: editData.phone_number,
-        classification: editData.classification,
+        classification,
         hourlyRate: editData.hourly_rate,
         address: editData.address,
         emergencyContact: editData.emergency_contact,
@@ -203,21 +216,18 @@ const WorkerDetails: React.FC = () => {
                 </span>
               </div>
               <div className="info-item">
-                <label>Classification</label>
+                <label htmlFor="worker-classification">Classification</label>
                 {editMode ? (
-                  <select
+                  <ClassificationField
+                    ref={classificationRef}
+                    id="worker-classification"
                     name="classification"
                     value={editData.classification || ''}
-                    onChange={handleInputChange}
-                  >
-                    {['MASON', 'CARPENTER', 'ELECTRICIAN', 'PLUMBER', 'LABORER', 'SUPERVISOR', 'OPERATOR', 'OTHER'].map(
-                      c => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      )
-                    )}
-                  </select>
+                    disabled={loading}
+                    onChange={classification =>
+                      setEditData(prev => ({ ...prev, classification }))
+                    }
+                  />
                 ) : (
                   <span className="info-value">{worker.classification}</span>
                 )}

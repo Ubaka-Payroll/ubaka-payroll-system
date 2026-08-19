@@ -706,6 +706,7 @@ input[type='text'],
 input[type='tel'],
 input[type='number'],
 input[type='date'],
+input[type='datetime-local'],
 input[type='search'],
 select,
 textarea {
@@ -814,6 +815,11 @@ table.data-table tbody tr:last-child td {
 .status-badge.inactive {
   background: #f1f5f9;
   color: #475569;
+}
+
+.status-badge.review {
+  background: #ffedd5;
+  color: #9a3412;
 }
 
 /* ---------- Dashboard ---------- */
@@ -1295,6 +1301,13 @@ table.data-table tbody tr:last-child td {
   grid-column: 1 / -1;
 }
 
+.classification-other {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
 .fingerprint-control {
   display: flex;
   gap: 0.6rem;
@@ -1468,4 +1481,89 @@ table.data-table tbody tr:last-child td {
   .form-actions .btn {
     width: 100%;
   }
+}
+
+.after-hours__lede {
+  max-width: 52rem;
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.after-hours__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.after-hours__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28, 29, 36, 0.65);
+  padding: 1.5rem;
+}
+
+.after-hours__modal {
+  width: min(32rem, 100%);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem 1.5rem 1.5rem;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28);
+}
+
+.after-hours__modal h3 {
+  margin: 0 0 0.5rem;
+}
+
+.after-hours__modal p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.classification-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+}
+
+.classification-filter--page {
+  padding: 0 0 1rem;
+}
+
+.classification-filter__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease);
+}
+
+.classification-filter__btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.classification-filter__btn.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.classification-filter__count {
+  font-size: 0.72rem;
+  font-weight: 800;
+  opacity: 0.75;
 }

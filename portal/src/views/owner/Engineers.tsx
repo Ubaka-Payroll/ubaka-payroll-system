@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Users } from 'lucide-react'
 import { Alert, LoadingState, EmptyState, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
-import { fetchEngineers, createEngineer } from '../../services/api'
+import { fetchEngineers, createEngineer, fetchOwnerSite } from '../../services/api'
 import type { FieldEngineer } from '../../types'
 
 const Engineers: React.FC = () => {
@@ -28,7 +28,9 @@ const Engineers: React.FC = () => {
     try {
       setLoading(true)
       setError(null)
-      setEngineers(await fetchEngineers())
+      const [list, site] = await Promise.all([fetchEngineers(), fetchOwnerSite()])
+      setEngineers(list)
+      setForm((prev) => (prev.siteName ? prev : { ...prev, siteName: site.siteName }))
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -46,7 +48,7 @@ const Engineers: React.FC = () => {
       const data = await createEngineer(form)
       push(data.message || 'Engineer created')
       setCreatedKey(data.activationKey)
-      setForm({ fullName: '', email: '', phone: '', siteName: '' })
+      setForm({ fullName: '', email: '', phone: '', siteName: form.siteName })
       setShowForm(false)
       await load()
     } catch (err: unknown) {

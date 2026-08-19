@@ -16,5 +16,7 @@ router.get('/history/:workerId', attendanceController.getWorkerHistory)
 // Summary and search
 router.get('/summary', attendanceController.getDailySummary)
 router.get('/search', attendanceController.searchRecords)
+router.get('/after-hours', attendanceController.getAfterHoursQueue)
+router.post('/after-hours', attendanceController.resolveAfterHours)
 
 export default router

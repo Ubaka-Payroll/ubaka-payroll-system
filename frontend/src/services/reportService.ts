@@ -30,35 +30,6 @@ export interface WorkerMonthlyStats {
     late_percentage: number;
 }
 
-export interface LateArrivalTrends {
-    period: {
-        start_date: string;
-        end_date: string;
-    };
-    daily_stats: Array<{
-        date: string;
-        total_late: number;
-        average_late_minutes: number;
-        total_deductions: number;
-    }>;
-    worker_stats: Array<{
-        worker_id: number;
-        worker_number: string;
-        full_name: string;
-        total_lates: number;
-        average_late_minutes: number;
-        total_deductions: number;
-        trend: 'improving' | 'worsening' | 'stable';
-    }>;
-    top_offenders: Array<{
-        worker_id: number;
-        worker_number: string;
-        full_name: string;
-        late_count: number;
-        total_late_minutes: number;
-    }>;
-}
-
 export interface PayrollExportData {
     period: {
         start_date: string;
@@ -94,36 +65,12 @@ const reportService = {
         return response.data.data;
     },
 
-    async getLateTrends(startDate: string, endDate: string): Promise<LateArrivalTrends> {
-        const response = await api.get('/reports/late-trends', {
-            params: { start_date: startDate, end_date: endDate }
-        });
-        return response.data.data;
-    },
-
     async getPayrollExport(startDate: string, endDate: string): Promise<PayrollExportData> {
         const response = await api.get('/reports/payroll-export', {
             params: { start_date: startDate, end_date: endDate }
         });
         return response.data.data;
     },
-
-    async downloadPayrollCSV(startDate: string, endDate: string): Promise<void> {
-        const response = await api.get('/reports/payroll-csv', {
-            params: { start_date: startDate, end_date: endDate },
-            responseType: 'blob'
-        });
-
-        // Create download link
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `payroll_${startDate}_to_${endDate}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-    }
 };
 
 export default reportService;

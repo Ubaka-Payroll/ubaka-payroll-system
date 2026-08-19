@@ -7,6 +7,7 @@ import {
   Users,
   KeyRound,
   FileText,
+  HardHat,
 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { useAuth } from '../hooks/useAuth'
@@ -53,12 +54,17 @@ export const OwnerShell: React.FC = () => (
     homePath="/owner"
     navItems={[
       { to: '/owner', label: 'Overview', icon: LayoutDashboard, end: true },
+      { to: '/owner/workers', label: 'Site workers', icon: HardHat },
       { to: '/owner/engineers', label: 'Engineers', icon: Users },
       { to: '/owner/keys', label: 'Activation keys', icon: KeyRound },
       { to: '/owner/reports', label: 'Daily reports', icon: FileText },
     ]}
     titles={{
-      '/owner': { title: 'Site overview', subtitle: 'Engineers, keys and latest attendance' },
+      '/owner': { title: 'Site overview', subtitle: 'Live attendance from the Field Engineer desktop app' },
+      '/owner/workers': {
+        title: 'Site workers',
+        subtitle: 'The same roster the Field Engineer manages on desktop',
+      },
       '/owner/engineers': {
         title: 'Field engineers',
         subtitle: 'Create engineers and share activation keys',

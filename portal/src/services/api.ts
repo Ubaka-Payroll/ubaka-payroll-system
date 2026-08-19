@@ -7,6 +7,8 @@ import type {
   ActivationKey,
   DailyReport,
   DailyReportMeta,
+  SiteSnapshot,
+  SiteWorker,
 } from '../types'
 
 const api = axios.create({
@@ -118,10 +120,13 @@ export async function fetchOwnerOverview() {
   const { data } = await api.get('/owner/overview')
   return data as {
     subscription: Subscription | null
+    site: SiteSnapshot
     engineerCount: number
     activeEngineers: number
     keysAvailable: number
     keysUsed: number
+    workerCount: number
+    todayReport: DailyReport | null
     latestReport: DailyReport | null
     recentReports: DailyReportMeta[]
   }
@@ -147,6 +152,16 @@ export async function createEngineer(payload: {
 
 export async function fetchOwnerKeys() {
   const { data } = await api.get<ActivationKey[]>('/owner/keys')
+  return data
+}
+
+export async function fetchOwnerSite() {
+  const { data } = await api.get<SiteSnapshot>('/owner/site')
+  return data
+}
+
+export async function fetchOwnerWorkers() {
+  const { data } = await api.get<SiteWorker[]>('/owner/workers')
   return data
 }
 

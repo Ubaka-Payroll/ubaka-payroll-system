@@ -8,6 +8,7 @@ import AdminDashboard from './views/admin/AdminDashboard'
 import OwnerRequests from './views/admin/OwnerRequests'
 import Subscriptions from './views/admin/Subscriptions'
 import OwnerDashboard from './views/owner/OwnerDashboard'
+import Workers from './views/owner/Workers'
 import Engineers from './views/owner/Engineers'
 import Keys from './views/owner/Keys'
 import Reports from './views/owner/Reports'
@@ -34,6 +35,7 @@ function App() {
             <Route element={<RequireAuth roles={['SITE_OWNER']} />}>
               <Route element={<OwnerShell />}>
                 <Route path="/owner" element={<OwnerDashboard />} />
+                <Route path="/owner/workers" element={<Workers />} />
                 <Route path="/owner/engineers" element={<Engineers />} />
                 <Route path="/owner/keys" element={<Keys />} />
                 <Route path="/owner/reports" element={<Reports />} />

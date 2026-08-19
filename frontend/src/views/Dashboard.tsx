@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Users, CheckCircle2, Activity, CalendarDays, Wallet, Clock, AlertCircle, TrendingUp, Eye } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Users, CheckCircle2, Activity, CalendarDays, Wallet, Clock, AlertCircle, TrendingUp, Eye, Timer } from 'lucide-react'
 import { attendanceService } from '../services/attendanceService'
 import attendanceCalculationService, { DailyWorkSummary } from '../services/attendanceCalculationService'
 import { LoadingState, EmptyState } from '../components/ui'
+import { ClassificationFilter } from '../components/ClassificationFilter'
+import { useClassificationFilter } from '../hooks/useClassificationFilter'
+import { filterByClassification } from '../lib/groupByClassification'
 import { useToast } from '../components/Toast'
 
 interface DailySummary {
@@ -18,6 +22,9 @@ interface DailySummary {
   hours_worked: number | null
   daily_wage: number | null
   hours_status?: string
+  late_minutes?: number
+  checkout_decision?: 'OVERTIME' | 'DELAYED_LEAVE' | null
+  needs_after_hours_review?: boolean
 }
 
 const Dashboard: React.FC = () => {
@@ -27,16 +34,18 @@ const Dashboard: React.FC = () => {
   const [calculating, setCalculating] = useState(false)
   const toast = useToast()
   const [selectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [pendingAfterHours, setPendingAfterHours] = useState(0)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [selectedSummary, setSelectedSummary] = useState<DailyWorkSummary | null>(null)
 
   useEffect(() => {
     loadDailySummary()
     loadPendingReview()
-    // Refresh while workers are still on site
+    loadAfterHoursCount()
     const id = window.setInterval(() => {
       loadDailySummary({ silent: true })
       loadPendingReview()
+      loadAfterHoursCount()
     }, 60_000)
     return () => window.clearInterval(id)
   }, [])
@@ -54,6 +63,15 @@ const Dashboard: React.FC = () => {
       if (!opts.silent) {
         setLoading(false)
       }
+    }
+  }
+
+  const loadAfterHoursCount = async () => {
+    try {
+      const queue = await attendanceService.getAfterHoursQueue()
+      setPendingAfterHours(queue.pending.length + queue.overtimeOpen.length)
+    } catch {
+      // After-hours queue is independent of the main dashboard table
     }
   }
 
@@ -136,11 +154,19 @@ const Dashboard: React.FC = () => {
     return `${count} (${minutes}m)`
   }
 
+  const classFilter = useClassificationFilter(summary, worker => worker.classification)
+  const visible = classFilter.filtered
+  const pendingReviewView = filterByClassification(
+    pendingReview,
+    row => row.classification,
+    classFilter.selected
+  )
+
   if (loading) return <LoadingState label="Loading dashboard…" />
 
-  const completed = summary.filter(w => w.exit_time).length
-  const active = summary.filter(w => w.entry_time && !w.exit_time).length
-  const totalWages = summary.reduce((sum, w) => sum + (Number(w.daily_wage) || 0), 0)
+  const completed = visible.filter(w => w.exit_time).length
+  const active = visible.filter(w => w.entry_time && !w.exit_time).length
+  const totalWages = visible.reduce((sum, w) => sum + (Number(w.daily_wage) || 0), 0)
 
   return (
     <div className="dashboard">
@@ -153,6 +179,13 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      <ClassificationFilter
+        className="classification-filter--page"
+        groups={classFilter.groups}
+        selected={classFilter.selected}
+        onSelect={classFilter.setSelected}
+      />
+
       <div className="stats-grid stats-grid--4">
         <div className="stat-card">
           <div className="stat-card__top">
@@ -160,7 +193,7 @@ const Dashboard: React.FC = () => {
               <Users size={18} />
             </div>
           </div>
-          <div className="stat-value">{summary.length}</div>
+          <div className="stat-value">{visible.length}</div>
           <div className="stat-label">Workers present</div>
         </div>
         <div className="stat-card">
@@ -194,13 +227,29 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {pendingReview.length > 0 && (
+      {pendingAfterHours > 0 && (
+        <div className="panel" style={{ marginBottom: '1.25rem' }}>
+          <div className="panel__head" style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
+            <h2 className="panel__title">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Timer size={18} />
+                After 6:00 — {pendingAfterHours} worker{pendingAfterHours === 1 ? '' : 's'} need a decision
+              </div>
+            </h2>
+            <Link to="/after-hours" className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem' }}>
+              Open After 6:00
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {pendingReviewView.length > 0 && (
         <div className="panel" style={{ marginBottom: '1.25rem' }}>
           <div className="panel__head" style={{ background: '#fff1f2', borderColor: '#fecdd3' }}>
             <h2 className="panel__title">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertCircle size={18} />
-                Pending approval ({pendingReview.length})
+                Pending approval ({pendingReviewView.length})
               </div>
             </h2>
           </div>
@@ -216,13 +265,12 @@ const Dashboard: React.FC = () => {
                     <th>Exit</th>
                     <th>Late</th>
                     <th>Hours</th>
-                    <th>Deductions</th>
-                    <th>Net pay</th>
+                    <th>Pay</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingReview.map((summary) => (
+                  {pendingReviewView.map((summary) => (
                     <tr key={summary.id}>
                       <td><strong>{summary.worker_number || `#${summary.worker_id}`}</strong></td>
                       <td>{summary.full_name || '—'}</td>
@@ -239,9 +287,6 @@ const Dashboard: React.FC = () => {
                         )}
                       </td>
                       <td>{formatHours(summary.regular_hours_net)}</td>
-                      <td style={{ color: 'var(--rose)' }}>
-                        {formatCurrency(summary.total_deductions)}
-                      </td>
                       <td>{formatCurrency(summary.net_pay)}</td>
                       <td>
                         <div className="action-buttons">
@@ -282,9 +327,9 @@ const Dashboard: React.FC = () => {
                   <tr>
                     <th>Worker #</th>
                     <th>Name</th>
-                    <th>Classification</th>
                     <th>Entry</th>
                     <th>Exit</th>
+                    <th>Late</th>
                     <th>Breaks</th>
                     <th>Hours</th>
                     <th>Daily wage</th>
@@ -292,24 +337,38 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.map(worker => (
+                  {visible.map(worker => (
                     <tr key={worker.worker_id}>
                       <td>
                         <strong>{worker.worker_number}</strong>
                       </td>
                       <td>{worker.full_name}</td>
-                      <td>{worker.classification}</td>
                       <td>{formatTime(worker.entry_time)}</td>
                       <td>{formatTime(worker.exit_time)}</td>
+                      <td>
+                        {worker.late_minutes ? (
+                          <span className="status-badge incomplete">
+                            {formatMinutesToHours(worker.late_minutes)}
+                          </span>
+                        ) : (
+                          <span className="status-badge active">On time</span>
+                        )}
+                      </td>
                       <td>{formatBreaks(worker.break_count, worker.break_minutes)}</td>
                       <td>{formatHours(worker.hours_worked)}</td>
                       <td>{formatWage(worker.daily_wage)}</td>
                       <td>
-                        <span
-                          className={`status-badge ${worker.exit_time ? 'completed' : 'active'}`}
-                        >
-                          {worker.exit_time ? 'Completed' : 'Active'}
-                        </span>
+                        {worker.needs_after_hours_review ? (
+                          <span className="status-badge review">Needs review</span>
+                        ) : worker.checkout_decision === 'OVERTIME' && !worker.exit_time ? (
+                          <span className="status-badge review">Overtime</span>
+                        ) : (
+                          <span
+                            className={`status-badge ${worker.exit_time ? 'completed' : 'active'}`}
+                          >
+                            {worker.exit_time ? 'Completed' : 'Active'}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -455,7 +514,7 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div style={{ fontSize: '0.9rem', color: 'var(--text)' }}>
                           Worker arrived <strong>{formatMinutesToHours(selectedSummary.late_minutes)} late</strong> (checked in at {formatTime(selectedSummary.actual_entry_time)}).
-                          Late deduction applied: <strong>{formatCurrency(selectedSummary.late_deduction_amount)}</strong>
+                          Work starts at 7:00 AM. Pay is for hours worked after arrival.
                         </div>
                       </div>
                     </div>
@@ -470,7 +529,7 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div style={{ fontSize: '0.9rem', color: 'var(--text)' }}>
                           Worker left <strong>{formatMinutesToHours(selectedSummary.early_departure_minutes)} early</strong> (checked out at {formatTime(selectedSummary.actual_exit_time)}).
-                          Deduction applied: <strong>{formatCurrency(selectedSummary.early_departure_deduction)}</strong>
+                          Pay is for hours actually worked.
                         </div>
                       </div>
                     </div>
@@ -559,14 +618,8 @@ const Dashboard: React.FC = () => {
                       {formatCurrency(selectedSummary.gross_pay)}
                     </div>
                   </div>
-                  <div className="info-item">
-                    <label>Total deductions</label>
-                    <div className="info-value" style={{ color: 'var(--rose)', fontWeight: 700 }}>
-                      {formatCurrency(selectedSummary.total_deductions)}
-                    </div>
-                  </div>
                   <div className="info-item-full">
-                    <label>Net pay</label>
+                    <label>Pay (hours × rate)</label>
                     <div style={{
                       fontSize: '1.5rem',
                       fontWeight: 700,

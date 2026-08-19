@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { FileText } from 'lucide-react'
 import { Alert, LoadingState, EmptyState } from '../../components/ui'
 import { fetchReports } from '../../services/api'
+import { formatWage } from '../../lib/format'
 import type { DailyReportMeta } from '../../types'
 
 const Reports: React.FC = () => {
@@ -35,7 +36,6 @@ const Reports: React.FC = () => {
     <div className="stack-gap">
       {error && <Alert variant="error" message={error} actionLabel="Retry" onAction={load} />}
 
-
       <div className="panel">
         <div className="panel__head">
           <h2 className="panel__title">Daily reports</h2>
@@ -45,7 +45,7 @@ const Reports: React.FC = () => {
             <EmptyState
               icon={<FileText size={24} />}
               title="No reports yet"
-              description="Once engineers record attendance on site, daily reports will show up here."
+              description="Clock workers in on the Field Engineer desktop app. Daily attendance from that site appears here."
             />
           ) : (
             <div className="table-wrap">
@@ -54,6 +54,7 @@ const Reports: React.FC = () => {
                   <tr>
                     <th>Date</th>
                     <th>Site</th>
+                    <th>Engineer</th>
                     <th>Workers</th>
                     <th>Completed</th>
                     <th>Active</th>
@@ -69,10 +70,11 @@ const Reports: React.FC = () => {
                         </Link>
                       </td>
                       <td>{r.siteName}</td>
+                      <td>{r.engineerName}</td>
                       <td>{r.workersPresent}</td>
                       <td>{r.completedShifts}</td>
                       <td>{r.activeOnSite}</td>
-                      <td>{r.totalWages.toLocaleString('en-US')}</td>
+                      <td>{formatWage(r.totalWages)}</td>
                     </tr>
                   ))}
                 </tbody>

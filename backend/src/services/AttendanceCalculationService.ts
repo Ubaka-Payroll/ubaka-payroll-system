@@ -19,6 +19,7 @@ import { DailyWorkSummaryRepository } from '../repositories/DailyWorkSummaryRepo
 import { LateArrivalRepository } from '../repositories/LateArrivalRepository'
 import { WorkScheduleRepository } from '../repositories/WorkScheduleRepository'
 import { AttendanceEventRepository } from '../repositories/AttendanceEventRepository'
+import { overlapMs, workEndOn } from '../constants/workDay'
 
 export class AttendanceCalculationService {
     private summaryRepo: DailyWorkSummaryRepository
@@ -60,9 +61,8 @@ export class AttendanceCalculationService {
             // Sort events by time
             events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
-            // Extract entry and exit times
             const entryEvent = events.find((e) => e.event_type === 'ENTRY')
-            const exitEvent = events.reverse().find((e) => e.event_type === 'EXIT')
+            const exitEvent = [...events].reverse().find((e) => e.event_type === 'EXIT')
 
             if (!entryEvent) {
                 return this.createIncompleteSummary(
@@ -100,8 +100,8 @@ export class AttendanceCalculationService {
                     actual_time: this.extractTimeString(new Date(entryEvent.timestamp)),
                     late_minutes: summary.late_minutes,
                     hourly_rate: hourlyRate,
-                    deduction_amount: summary.late_deduction_amount,
-                    deduction_applied: true,
+                    deduction_amount: 0,
+                    deduction_applied: false,
                     warning_issued: lateCount >= 2, // Warn after 3rd late
                     late_count_this_month: lateCount + 1,
                     waived: false,
@@ -153,10 +153,9 @@ export class AttendanceCalculationService {
         const scheduledStart = this.createDateTime(date, schedule.start_time)
         const scheduledEnd = this.createDateTime(date, schedule.end_time)
 
-        // Check if late (STRICT 7:00 AM - no grace period)
+        // Late vs 07:00 is informational only — pay is hours actually worked
         const isLate = entryTime > scheduledStart
         const lateMinutes = isLate ? this.getMinutesDifference(scheduledStart, entryTime) : 0
-        const lateDeduction = (lateMinutes / 60) * hourlyRate
 
         // Check if early arrival
         const isEarlyArrival = entryTime < scheduledStart
@@ -165,17 +164,18 @@ export class AttendanceCalculationService {
         // If arrived early, paid from 7:00 AM. If late, paid from actual arrival.
         const payableEntryTime = isEarlyArrival ? scheduledStart : entryTime
 
-        // Payable exit time = MIN(actual_exit, scheduled_end) for regular hours
-        // If exit is null, use current time or scheduled end
+        // Payable exit time = MIN(actual_exit, 17:00). Time after 5:00 PM is not paid.
         const actualExitTime = exitTime || new Date()
-        const payableExitTime = actualExitTime < scheduledEnd ? actualExitTime : scheduledEnd
+        const hardStop = workEndOn(entryTime)
+        const scheduledCap = scheduledEnd < hardStop ? scheduledEnd : hardStop
+        const payableExitTime = actualExitTime < scheduledCap ? actualExitTime : scheduledCap
 
-        // Calculate breaks
-        const breakMinutes = this.calculateBreakMinutes(events)
+        // Calculate breaks inside the paid 07:00–17:00 window
+        const breakMinutes = this.calculateBreakMinutes(events, payableEntryTime, payableExitTime)
 
         // Calculate regular hours
         const grossMinutes = this.getMinutesDifference(payableEntryTime, payableExitTime)
-        const netMinutes = grossMinutes - breakMinutes.unpaid
+        const netMinutes = Math.max(0, grossMinutes - breakMinutes.unpaid)
         const regularHoursGross = grossMinutes / 60
         const regularHoursNet = netMinutes / 60
 
@@ -184,17 +184,15 @@ export class AttendanceCalculationService {
         const earlyDepartureMinutes = isEarlyDeparture && exitTime
             ? this.getMinutesDifference(exitTime, scheduledEnd)
             : 0
-        const earlyDepartureDeduction = (earlyDepartureMinutes / 60) * hourlyRate
 
         // Calculate overtime (only if exits after scheduled end)
         const overtimeHours = 0 // TODO: Implement with overtime authorization check
 
-        // Financial calculations
+        // Pay for time actually worked (hours × rate). Late is recorded, not deducted.
         const regularPay = regularHoursNet * hourlyRate
         const overtimePay = overtimeHours * hourlyRate * schedule.overtime_rate_multiplier
         const grossPay = regularPay + overtimePay
-        const totalDeductions = lateDeduction + earlyDepartureDeduction
-        const netPay = grossPay - totalDeductions
+        const netPay = grossPay
 
         // Determine attendance status
         let attendanceStatus: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_DEPARTURE' | 'INCOMPLETE' = 'PRESENT'
@@ -219,10 +217,10 @@ export class AttendanceCalculationService {
             attendance_status: attendanceStatus,
             is_late: isLate,
             late_minutes: lateMinutes,
-            late_deduction_amount: lateDeduction,
+            late_deduction_amount: 0,
             is_early_departure: isEarlyDeparture,
             early_departure_minutes: earlyDepartureMinutes,
-            early_departure_deduction: earlyDepartureDeduction,
+            early_departure_deduction: 0,
             is_early_arrival: isEarlyArrival,
 
             total_break_minutes: breakMinutes.total,
@@ -239,12 +237,12 @@ export class AttendanceCalculationService {
             regular_pay: Number(regularPay.toFixed(2)),
             overtime_pay: Number(overtimePay.toFixed(2)),
             gross_pay: Number(grossPay.toFixed(2)),
-            total_deductions: Number(totalDeductions.toFixed(2)),
+            total_deductions: 0,
             net_pay: Number(netPay.toFixed(2)),
 
             has_anomalies: hasAnomalies,
             anomaly_count: anomalyCount,
-            requires_supervisor_review: hasAnomalies || isLate,
+            requires_supervisor_review: hasAnomalies,
 
             calculation_status: 'CALCULATED',
             approved_for_payroll: false,
@@ -256,7 +254,11 @@ export class AttendanceCalculationService {
     /**
      * Calculate break minutes from events
      */
-    private calculateBreakMinutes(events: AttendanceEvent[]): {
+    private calculateBreakMinutes(
+        events: AttendanceEvent[],
+        windowStart: Date,
+        windowEnd: Date
+    ): {
         total: number
         paid: number
         unpaid: number
@@ -280,12 +282,12 @@ export class AttendanceCalculationService {
             }
         })
 
-        // Match break starts with break ends
         for (let i = 0; i < breakStarts.length; i++) {
             if (i < breakEnds.length) {
-                const minutes = this.getMinutesDifference(breakStarts[i], breakEnds[i])
+                const minutes = Math.round(
+                    overlapMs(breakStarts[i], breakEnds[i], windowStart, windowEnd) / 60_000
+                )
                 totalMinutes += minutes
-                // For now, assume breaks over 30 minutes are unpaid (lunch)
                 if (minutes > 30) {
                     unpaidMinutes += minutes
                 } else {

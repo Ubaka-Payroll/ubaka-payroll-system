@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { pool, mapSubscription, mapEngineer, mapKey } from '../services/portalMappers'
-import { listAttendanceReports, getAttendanceReport } from '../services/PortalReportService'
+import { listAttendanceReports, getAttendanceReport, getTodayReport, getSiteSnapshot, listSiteWorkers } from '../services/PortalReportService'
 
 const router = Router()
 
@@ -9,26 +9,37 @@ router.use(requireAuth, requireRole('SITE_OWNER'))
 
 router.get('/overview', async (req, res) => {
   const ownerId = req.user!.id
-  const [sub, engineers, keys, reports] = await Promise.all([
+  const [sub, engineers, keys, reports, site, todayReport] = await Promise.all([
     pool().query(`SELECT * FROM subscription WHERE owner_id = $1 ORDER BY created_at DESC LIMIT 1`, [ownerId]),
     pool().query(`SELECT * FROM field_engineer WHERE owner_id = $1`, [ownerId]),
     pool().query(`SELECT * FROM activation_key WHERE owner_id = $1`, [ownerId]),
     listAttendanceReports(ownerId),
+    getSiteSnapshot(ownerId),
+    getTodayReport(ownerId),
   ])
 
-  const latest = reports[0]
-    ? await getAttendanceReport(ownerId, reports[0].reportDate)
-    : null
+  const latest = todayReport || (reports[0] ? await getAttendanceReport(ownerId, reports[0].reportDate) : null)
 
   return res.json({
     subscription: sub.rows[0] ? mapSubscription(sub.rows[0]) : null,
+    site,
     engineerCount: engineers.rowCount || 0,
     activeEngineers: engineers.rows.filter((e) => e.status === 'ACTIVE').length,
     keysAvailable: keys.rows.filter((k) => k.status === 'AVAILABLE').length,
-    keysUsed: keys.rows.filter((k) => k.status === 'USED').length,
+    keysUsed: keys.rows.filter((k) => k.status === 'USED' || k.status === 'ASSIGNED').length,
+    workerCount: site.workerCount,
+    todayReport,
     latestReport: latest,
     recentReports: reports.slice(0, 7),
   })
+})
+
+router.get('/site', async (req, res) => {
+  return res.json(await getSiteSnapshot(req.user!.id))
+})
+
+router.get('/workers', async (_req, res) => {
+  return res.json(await listSiteWorkers())
 })
 
 router.get('/engineers', async (req, res) => {

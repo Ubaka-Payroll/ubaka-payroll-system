@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { UserPlus, Search, Eye, Pencil, Trash2, Users } from 'lucide-react'
 import { workerService, Worker } from '../services/workerService'
 import { Alert, LoadingState, EmptyState } from '../components/ui'
+import { ClassificationFilter } from '../components/ClassificationFilter'
+import { useClassificationFilter } from '../hooks/useClassificationFilter'
 
 const WorkerList: React.FC = () => {
   const navigate = useNavigate()
@@ -52,6 +54,8 @@ const WorkerList: React.FC = () => {
     }
   }
 
+  const classFilter = useClassificationFilter(workers, worker => worker.classification)
+
   if (loading && workers.length === 0) return <LoadingState label="Loading workers…" />
 
   return (
@@ -91,9 +95,16 @@ const WorkerList: React.FC = () => {
         <Alert variant="error" message={error} actionLabel="Retry" onAction={loadWorkers} />
       )}
 
+      <ClassificationFilter
+        className="classification-filter--page"
+        groups={classFilter.groups}
+        selected={classFilter.selected}
+        onSelect={classFilter.setSelected}
+      />
+
       <div className="meta-chip">
         <Users size={14} />
-        {workers.length} worker{workers.length === 1 ? '' : 's'}
+        {classFilter.filtered.length} worker{classFilter.filtered.length === 1 ? '' : 's'}
       </div>
 
       {workers.length === 0 ? (
@@ -119,23 +130,19 @@ const WorkerList: React.FC = () => {
                   <th>Worker #</th>
                   <th>Name</th>
                   <th>NID</th>
-                  <th>Classification</th>
                   <th>Phone</th>
                   <th>Hourly rate</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {workers.map(worker => (
+                {classFilter.filtered.map(worker => (
                   <tr key={worker.id}>
                     <td>
                       <strong>{worker.worker_number}</strong>
                     </td>
                     <td>{worker.full_name}</td>
                     <td>{worker.nid}</td>
-                    <td>
-                      <span className="worker-classification">{worker.classification}</span>
-                    </td>
                     <td>{worker.phone_number || '—'}</td>
                     <td>{parseFloat(String(worker.hourly_rate)).toFixed(0)} RWF</td>
                     <td>

@@ -45,6 +45,7 @@ export interface HoursWorkedResult {
   exitTime?: Date
   breakDuration?: number
   breakCount?: number
+  lateMinutes?: number
 }
 
 export interface DailyWage {

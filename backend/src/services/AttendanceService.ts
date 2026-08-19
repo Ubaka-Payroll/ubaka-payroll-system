@@ -1,18 +1,50 @@
 import { AttendanceEventRepository } from '../repositories/AttendanceEventRepository'
 import { WorkerRepository } from '../repositories/WorkerRepository'
 import { DailyWageRepository } from '../repositories/DailyWageRepository'
+import { CheckoutReviewRepository, CheckoutDecision } from '../repositories/CheckoutReviewRepository'
 import { AttendanceEvent, EventType, HoursWorkedResult } from '../models/types'
 import { logger } from '../utils/Logger'
+import {
+    lateMinutesFromWorkStart,
+    overlapMs,
+    payableEndFromSession,
+    payableStartFromEntry,
+    checkoutReviewOn,
+} from '../constants/workDay'
+
+function localDateKey(value: Date | string): string {
+    if (typeof value === 'string') return value.slice(0, 10)
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
+function parseLocalDate(value: Date | string): Date {
+    const key = localDateKey(value)
+    const [y, m, d] = key.split('-').map(Number)
+    return new Date(y, m - 1, d)
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+    return (
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate()
+    )
+}
 
 export class AttendanceService {
     private attendanceRepository: AttendanceEventRepository
     private workerRepository: WorkerRepository
     private dailyWageRepository: DailyWageRepository
+    private checkoutReviewRepository: CheckoutReviewRepository
 
     constructor() {
         this.attendanceRepository = new AttendanceEventRepository()
         this.workerRepository = new WorkerRepository()
         this.dailyWageRepository = new DailyWageRepository()
+        this.checkoutReviewRepository = new CheckoutReviewRepository()
     }
 
     async recordAttendanceEvent(
@@ -20,7 +52,8 @@ export class AttendanceService {
         eventType: EventType,
         timestamp: Date = new Date(),
         isManualEntry: boolean = false,
-        createdBy?: string
+        createdBy?: string,
+        options: { skipSequenceCheck?: boolean } = {}
     ): Promise<AttendanceEvent> {
         const worker = await this.workerRepository.findById(workerId)
         if (!worker) {
@@ -32,11 +65,15 @@ export class AttendanceService {
 
         const todayEvents = await this.attendanceRepository.findByWorkerAndDate(workerId, timestamp)
 
-        const validNextEvents = this.determineNextEventType(todayEvents)
-        if (!validNextEvents.includes(eventType)) {
-            throw new Error(
-                `Invalid event type '${eventType}'. Expected one of: ${validNextEvents.join(', ')}`
-            )
+        if (!options.skipSequenceCheck) {
+            const validNextEvents = this.determineNextEventType(todayEvents)
+            if (!validNextEvents.includes(eventType)) {
+                throw new Error(
+                    `Invalid event type '${eventType}'. Expected one of: ${validNextEvents.join(', ')}`
+                )
+            }
+        } else if (eventType === 'EXIT' && todayEvents.some(e => e.event_type === 'EXIT')) {
+            throw new Error('Worker already has an EXIT for this date')
         }
 
         const event = await this.attendanceRepository.recordEvent(
@@ -178,22 +215,27 @@ export class AttendanceService {
         const asOf = options.asOf ?? new Date()
         const entryTs = new Date(entryEvent.timestamp)
         const lastEventTs = new Date(sortedEvents[sortedEvents.length - 1].timestamp)
+        const payableStart = payableStartFromEntry(entryTs)
+        const lateMinutes = lateMinutesFromWorkStart(entryTs)
+        const review = await this.checkoutReviewRepository.findByWorkerAndDate(workerId, date)
+        const overtimeApproved = review?.decision === 'OVERTIME'
 
-        // Past incomplete days: stop at last event, not wall-clock now
-        const workDay = new Date(date)
-        const sameCalendarDay =
-            asOf.getFullYear() === workDay.getFullYear() &&
-            asOf.getMonth() === workDay.getMonth() &&
-            asOf.getDate() === workDay.getDate()
+        const workDay = parseLocalDate(date)
+        const sameCalendarDay = sameLocalDay(asOf, workDay)
 
-        const sessionEnd = exitEvent
+        const rawSessionEnd = exitEvent
             ? new Date(exitEvent.timestamp)
-            : sameCalendarDay
-              ? asOf
-              : lastEventTs
-        const sessionDuration = sessionEnd.getTime() - entryTs.getTime()
+            : overtimeApproved && review?.overtime_end_time
+              ? new Date(review.overtime_end_time)
+              : sameCalendarDay
+                ? asOf
+                : lastEventTs
+        const sessionEnd = overtimeApproved
+            ? rawSessionEnd
+            : payableEndFromSession(rawSessionEnd, entryTs)
+        const sessionDuration = Math.max(0, sessionEnd.getTime() - payableStart.getTime())
 
-        // Pair LEAVE_SITE → RETURN_TO_SITE chronologically; open leave counts until sessionEnd
+        // Pair LEAVE_SITE → RETURN_TO_SITE; only time inside 07:00–17:00 is unpaid break
         let totalBreakDuration = 0
         let breakCount = 0
         let openLeave: Date | null = null
@@ -204,12 +246,12 @@ export class AttendanceService {
                 openLeave = ts
                 breakCount += 1
             } else if (event.event_type === 'RETURN_TO_SITE' && openLeave) {
-                totalBreakDuration += ts.getTime() - openLeave.getTime()
+                totalBreakDuration += overlapMs(openLeave, ts, payableStart, sessionEnd)
                 openLeave = null
             }
         }
         if (openLeave) {
-            totalBreakDuration += sessionEnd.getTime() - openLeave.getTime()
+            totalBreakDuration += overlapMs(openLeave, sessionEnd, payableStart, sessionEnd)
         }
 
         const netDuration = Math.max(0, sessionDuration - totalBreakDuration)
@@ -222,6 +264,7 @@ export class AttendanceService {
             exitTime: exitEvent?.timestamp,
             breakDuration: totalBreakDuration,
             breakCount,
+            lateMinutes,
         }
     }
 
@@ -256,6 +299,21 @@ export class AttendanceService {
                     row.break_count = hoursResult.breakCount
                 }
                 row.hours_status = hoursResult.status
+                row.late_minutes = hoursResult.lateMinutes ?? 0
+                const review = await this.checkoutReviewRepository.findByWorkerAndDate(
+                    row.worker_id,
+                    date
+                )
+                const reviewCutoff = checkoutReviewOn(date)
+                const now = new Date()
+                const afterHours = now >= reviewCutoff
+                const exitTs = row.exit_time ? new Date(row.exit_time) : null
+                row.checkout_decision = review?.decision ?? null
+                row.needs_after_hours_review =
+                    afterHours &&
+                    !review &&
+                    !!row.entry_time &&
+                    (!exitTs || exitTs > reviewCutoff)
             } catch (err) {
                 logger.warn('Failed to refresh daily summary row', {
                     workerId: row.worker_id,
@@ -275,6 +333,9 @@ export class AttendanceService {
                     ? Number(row.break_minutes)
                     : null,
             hours_status: row.hours_status || (row.exit_time ? 'COMPLETE' : 'IN_PROGRESS'),
+            late_minutes: Number(row.late_minutes || 0),
+            checkout_decision: row.checkout_decision || null,
+            needs_after_hours_review: Boolean(row.needs_after_hours_review),
         }))
     }
 
@@ -370,5 +431,145 @@ export class AttendanceService {
         }
 
         return filtered.sort((a, b) => b.date.localeCompare(a.date))
+    }
+
+    async getAfterHoursQueue() {
+        const now = new Date()
+        const afterHoursToday = now >= checkoutReviewOn(now)
+        const rows = await this.checkoutReviewRepository.listOpenCases(30)
+        const pending: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
+        const overtimeOpen: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
+        const resolved: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
+
+        for (const row of rows) {
+            const mapped = this.mapAfterHoursRow(row)
+            const workDate = parseLocalDate(mapped.workDate)
+            const isToday = sameLocalDay(workDate, now)
+            const afterHours = !isToday || afterHoursToday
+            const reviewCutoff = checkoutReviewOn(workDate)
+            const hasExit = Boolean(mapped.exitTime)
+            const exitAfterClose =
+                hasExit && mapped.exitTime != null && new Date(mapped.exitTime) > reviewCutoff
+            const decision = mapped.decision
+
+            if (decision === 'OVERTIME' && !hasExit) {
+                overtimeOpen.push(mapped)
+                continue
+            }
+
+            if (decision) {
+                if (isToday || afterHours) {
+                    resolved.push(mapped)
+                }
+                continue
+            }
+
+            const needsReview = afterHours && (!hasExit || exitAfterClose)
+            if (needsReview) {
+                pending.push(mapped)
+            }
+        }
+
+        return {
+            afterHoursToday,
+            workEnd: '18:00',
+            pending,
+            overtimeOpen,
+            resolved: resolved.filter(r => {
+                const workDate = parseLocalDate(r.workDate)
+                return sameLocalDay(workDate, now)
+            }),
+        }
+    }
+
+    async resolveAfterHours(input: {
+        workerId: number
+        date: Date | string
+        decision: CheckoutDecision
+        overtimeEndTime?: Date | string | null
+        notes?: string | null
+        reviewedBy?: string | null
+    }) {
+        const workDate = parseLocalDate(input.date)
+        const worker = await this.workerRepository.findById(input.workerId)
+        if (!worker) {
+            throw new Error(`Worker with ID ${input.workerId} not found`)
+        }
+
+        const events = await this.attendanceRepository.findByWorkerAndDate(input.workerId, workDate)
+        if (!events.some(e => e.event_type === 'ENTRY')) {
+            throw new Error('Worker has no entry for this date')
+        }
+
+        const hasExit = events.some(e => e.event_type === 'EXIT')
+        let overtimeEnd: Date | null = null
+        if (input.decision === 'OVERTIME' && input.overtimeEndTime) {
+            overtimeEnd = new Date(input.overtimeEndTime)
+            if (isNaN(overtimeEnd.getTime())) {
+                throw new Error('Invalid overtime end time')
+            }
+        }
+
+        const review = await this.checkoutReviewRepository.upsert({
+            workerId: input.workerId,
+            workDate,
+            decision: input.decision,
+            overtimeEndTime: overtimeEnd,
+            notes: input.notes,
+            reviewedBy: input.reviewedBy || 'Field Engineer',
+        })
+
+        if (input.decision === 'DELAYED_LEAVE' && !hasExit) {
+            await this.recordAttendanceEvent(
+                input.workerId,
+                'EXIT',
+                checkoutReviewOn(workDate),
+                true,
+                `${input.reviewedBy || 'Field Engineer'} · delayed leaving`,
+                { skipSequenceCheck: true }
+            )
+        } else if (input.decision === 'OVERTIME' && overtimeEnd && !hasExit) {
+            await this.recordAttendanceEvent(
+                input.workerId,
+                'EXIT',
+                overtimeEnd,
+                true,
+                `${input.reviewedBy || 'Field Engineer'} · overtime`,
+                { skipSequenceCheck: true }
+            )
+        } else {
+            await this.upsertDailyWageProgress(
+                input.workerId,
+                workDate,
+                Number(worker.hourly_rate),
+                hasExit || input.decision === 'DELAYED_LEAVE'
+            )
+        }
+
+        return review
+    }
+
+    private mapAfterHoursRow(row: Record<string, unknown>) {
+        return {
+            workerId: Number(row.worker_id),
+            workerNumber: String(row.worker_number),
+            fullName: String(row.full_name),
+            classification: String(row.classification),
+            hourlyRate: Number(row.hourly_rate),
+            workDate: localDateKey(String(row.work_date)),
+            entryTime: row.entry_time ? new Date(row.entry_time as string | Date).toISOString() : null,
+            exitTime: row.exit_time ? new Date(row.exit_time as string | Date).toISOString() : null,
+            hoursWorked: row.hours_worked != null ? Number(row.hours_worked) : null,
+            wageAmount: row.wage_amount != null ? Number(row.wage_amount) : null,
+            decision: (row.decision as CheckoutDecision | null) || null,
+            overtimeEndTime: row.overtime_end_time
+                ? new Date(row.overtime_end_time as string | Date).toISOString()
+                : null,
+            notes: (row.notes as string | null) || null,
+            reviewedAt: row.reviewed_at
+                ? new Date(row.reviewed_at as string | Date).toISOString()
+                : null,
+            reviewedBy: (row.reviewed_by as string | null) || null,
+        }
     }
 }

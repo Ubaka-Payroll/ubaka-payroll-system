@@ -64,4 +64,14 @@ export const workerService = {
         const response = await api.get('/workers/next-number')
         return response.data.data.nextNumber
     },
+
+    async getClassifications(): Promise<string[]> {
+        const response = await api.get('/workers/classifications')
+        return response.data.data
+    },
+
+    async addClassification(name: string): Promise<string> {
+        const response = await api.post('/workers/classifications', { name })
+        return response.data.data.name
+    },
 }

@@ -74,4 +74,27 @@ export class WorkerRepository extends BaseRepository<Worker> {
     const result = await this.pool.query(query, [fingerprintData])
     return parseInt(result.rows[0].count) > 0
   }
+
+  async listClassifications(): Promise<string[]> {
+    const query = `
+      SELECT name FROM worker_classification
+      UNION
+      SELECT DISTINCT classification AS name
+      FROM ${this.tableName}
+      WHERE classification IS NOT NULL AND TRIM(classification) <> ''
+    `
+    const result = await this.pool.query(query)
+    return result.rows.map(row => row.name as string)
+  }
+
+  async addClassification(name: string): Promise<string> {
+    const query = `
+      INSERT INTO worker_classification (name, is_builtin)
+      VALUES ($1, FALSE)
+      ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+      RETURNING name
+    `
+    const result = await this.pool.query(query, [name])
+    return result.rows[0].name as string
+  }
 }

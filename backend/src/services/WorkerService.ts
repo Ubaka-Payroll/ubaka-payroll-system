@@ -1,5 +1,10 @@
 import { WorkerRepository } from '../repositories/WorkerRepository'
-import { Worker, WorkerRegistrationData } from '../models/types'
+import { Worker } from '../models/types'
+import {
+  OTHER_CLASSIFICATION,
+  normalizeClassificationName,
+  sortClassifications,
+} from '../constants/classifications'
 
 export class WorkerService {
   private workerRepository: WorkerRepository
@@ -25,6 +30,7 @@ export class WorkerService {
     if (!nid) throw new Error('National ID (NID) is required')
     if (!fullName) throw new Error('Full Name is required')
     if (!classification) throw new Error('Classification is required')
+    const normalizedClassification = await this.ensureClassification(classification)
     if (hourlyRate === undefined || hourlyRate === null) throw new Error('Hourly Rate is required')
     if (!fingerprintStr) throw new Error('Fingerprint data is required')
 
@@ -55,7 +61,7 @@ export class WorkerService {
     const entity = {
       nid,
       worker_number,
-      classification,
+      classification: normalizedClassification,
       full_name: fullName,
       phone_number: phoneNumber || null,
       email_address: emailAddress || null,
@@ -87,6 +93,9 @@ export class WorkerService {
 
     // Prevent updating certain fields
     const { id: _, fingerprint_data, nid, worker_number, ...updateData } = data as any
+    if (updateData.classification) {
+      updateData.classification = await this.ensureClassification(String(updateData.classification))
+    }
 
     return await this.workerRepository.update(id, updateData)
   }
@@ -114,6 +123,28 @@ export class WorkerService {
 
   async getWorkersByClassification(classification: string): Promise<Worker[]> {
     return await this.workerRepository.findByClassification(classification)
+  }
+
+  async listClassifications(): Promise<string[]> {
+    const names = await this.workerRepository.listClassifications()
+    return sortClassifications(names)
+  }
+
+  async addClassification(rawName: string): Promise<string> {
+    return this.ensureClassification(rawName)
+  }
+
+  private requireStoredClassification(rawName: string): string {
+    const name = normalizeClassificationName(rawName)
+    if (name === OTHER_CLASSIFICATION) {
+      throw new Error('Enter a name for the new classification')
+    }
+    return name
+  }
+
+  private async ensureClassification(rawName: string): Promise<string> {
+    const name = this.requireStoredClassification(rawName)
+    return this.workerRepository.addClassification(name)
   }
 
   async validateUniqueNID(nid: string, excludeId?: number): Promise<boolean> {

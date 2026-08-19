@@ -29,6 +29,22 @@ CREATE UNIQUE INDEX idx_worker_number ON worker(worker_number);
 CREATE INDEX idx_worker_classification ON worker(classification);
 CREATE INDEX idx_worker_active ON worker(is_active);
 
+-- Job classifications (built-in + custom names added from OTHER)
+CREATE TABLE worker_classification (
+    name VARCHAR(100) PRIMARY KEY,
+    is_builtin BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO worker_classification (name, is_builtin) VALUES
+    ('MASON', TRUE),
+    ('CARPENTER', TRUE),
+    ('ELECTRICIAN', TRUE),
+    ('PLUMBER', TRUE),
+    ('LABORER', TRUE),
+    ('SUPERVISOR', TRUE),
+    ('OPERATOR', TRUE);
+
 -- AttendanceEvent Table
 CREATE TABLE attendance_event (
     id SERIAL PRIMARY KEY,
@@ -84,6 +100,22 @@ CREATE TABLE daily_wage (
 
 CREATE INDEX idx_daily_wage_date ON daily_wage(work_date);
 CREATE INDEX idx_daily_wage_worker ON daily_wage(worker_id);
+
+CREATE TABLE checkout_review (
+    id SERIAL PRIMARY KEY,
+    worker_id INTEGER NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
+    work_date DATE NOT NULL,
+    decision VARCHAR(20) NOT NULL CHECK (decision IN ('OVERTIME', 'DELAYED_LEAVE')),
+    overtime_end_time TIMESTAMP,
+    notes TEXT,
+    reviewed_by VARCHAR(255),
+    reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (worker_id, work_date)
+);
+
+CREATE INDEX idx_checkout_review_date ON checkout_review(work_date);
+CREATE INDEX idx_checkout_review_worker ON checkout_review(worker_id);
 
 -- SiteConfiguration Table
 CREATE TABLE site_configuration (

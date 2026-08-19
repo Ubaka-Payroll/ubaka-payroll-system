@@ -147,4 +147,35 @@ export class WorkerController {
       res.status(500).json(response)
     }
   }
+
+  listClassifications = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const classifications = await this.workerService.listClassifications()
+      res.json({
+        success: true,
+        data: classifications,
+      })
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      })
+    }
+  }
+
+  addClassification = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const name = await this.workerService.addClassification(req.body?.name || '')
+      res.status(201).json({
+        success: true,
+        data: { name },
+        message: 'Classification added',
+      })
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        error: error.message,
+      })
+    }
+  }
 }

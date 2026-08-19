@@ -146,10 +146,7 @@ export class ReportController {
                 'Regular Pay',
                 'Overtime Pay',
                 'Gross Pay',
-                'Late Deductions',
-                'Other Deductions',
-                'Total Deductions',
-                'Net Pay'
+                'Pay'
             ].join(',')
 
             const csvRows = payrollData.workers.map(w => [
@@ -162,9 +159,6 @@ export class ReportController {
                 w.regular_pay.toFixed(2),
                 w.overtime_pay.toFixed(2),
                 w.gross_pay.toFixed(2),
-                w.late_deductions.toFixed(2),
-                w.other_deductions.toFixed(2),
-                w.total_deductions.toFixed(2),
                 w.net_pay.toFixed(2)
             ].join(','))
 
@@ -179,9 +173,6 @@ export class ReportController {
                 '',
                 '',
                 payrollData.totals.total_gross_pay.toFixed(2),
-                '',
-                '',
-                payrollData.totals.total_deductions.toFixed(2),
                 payrollData.totals.total_net_pay.toFixed(2)
             ].join(',')
 

@@ -83,6 +83,37 @@ function httpGet(url: string, timeoutMs = 3000): Promise<{ status: number; body:
   })
 }
 
+function httpPost(url: string, timeoutMs = 15_000): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname,
+        method: 'POST',
+        timeout: timeoutMs,
+      },
+      res => {
+        const chunks: Buffer[] = []
+        res.on('data', c => chunks.push(c))
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode || 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          })
+        })
+      }
+    )
+    req.on('error', reject)
+    req.on('timeout', () => {
+      req.destroy()
+      reject(new Error(`Timeout requesting ${url}`))
+    })
+    req.end()
+  })
+}
+
 async function waitFor(
   label: string,
   check: () => Promise<boolean>,
@@ -109,6 +140,7 @@ export class ServiceSupervisor {
   private credentials: Credentials | null = null
   private fingerprintMock = false
   private stopping = false
+  private bundledStackStarted = false
 
   constructor() {
     this.resources = resolveResources()
@@ -411,14 +443,105 @@ export class ServiceSupervisor {
     return fs.existsSync(dll)
   }
 
-  private async startFingerprint(): Promise<void> {
+  private hasLinuxSdk(): boolean {
+    return fs.existsSync(path.join(this.resources.sdkLinux, 'libzkfp.so'))
+  }
+
+  private shouldUseMockFingerprint(): boolean {
+    if (process.platform === 'win32') return !this.hasWindowsSdk()
+    return !this.hasLinuxSdk()
+  }
+
+  private fingerprintPython(): string {
+    const venvName = process.platform === 'win32' ? 'python.exe' : 'python'
+    const venv = path.join(this.resources.root, 'venv-fingerprint', 'bin', venvName)
+    if (fs.existsSync(venv)) return venv
+    const winVenv = path.join(this.resources.root, 'venv-fingerprint', 'Scripts', 'python.exe')
+    if (fs.existsSync(winVenv)) return winVenv
+    return process.platform === 'win32' ? 'python' : 'python3'
+  }
+
+  private async isFingerprintHealthy(): Promise<boolean> {
+    try {
+      const res = await httpGet(`http://127.0.0.1:${FP_PORT}/health`, 2000)
+      return res.status === 200
+    } catch {
+      return false
+    }
+  }
+
+  private async syncFingerprintHealth(): Promise<void> {
+    try {
+      const res = await httpGet(`http://127.0.0.1:${FP_PORT}/health`, 3000)
+      const body = JSON.parse(res.body) as {
+        mode?: string
+        scanner_initialized?: boolean
+        usb_present?: boolean
+      }
+      this.fingerprintMock = body.mode === 'MOCK'
+      if (
+        body.scanner_initialized === false ||
+        body.usb_present === false ||
+        body.mode === 'DISABLED'
+      ) {
+        try {
+          await httpPost(`http://127.0.0.1:${FP_PORT}/scanner/reconnect`)
+        } catch {
+          // scanner may still come up on the next capture
+        }
+      }
+    } catch {
+      // health already passed or service is mock-only
+    }
+  }
+
+  private spawnFingerprintProcess(env: NodeJS.ProcessEnv): ChildProcess {
+    const exePath = path.join(this.resources.fingerprint, binName('fingerprint-service'))
+    const startSh = path.join(this.resources.fingerprint, 'start.sh')
+    const pyScript = path.join(this.resources.fingerprint, 'zkfinger_service.py')
+    const spawnOpts = {
+      cwd: this.resources.fingerprint,
+      env,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    }
+
+    if (fs.existsSync(exePath)) {
+      return spawn(exePath, [], spawnOpts)
+    }
+
+    if (process.platform !== 'win32' && fs.existsSync(startSh)) {
+      return spawn('bash', [startSh], spawnOpts)
+    }
+
+    if (fs.existsSync(pyScript)) {
+      return spawn(this.fingerprintPython(), [pyScript], spawnOpts)
+    }
+
+    throw new Error(`Fingerprint service not found at ${exePath} or ${pyScript}`)
+  }
+
+  /** Start the scanner sidecar, or attach if it is already healthy on :5001. */
+  async startFingerprint(): Promise<ServiceStatus> {
     this.emit({ phase: 'fingerprint', detail: 'Starting fingerprint service…', ready: false })
 
-    const useMock = !this.hasWindowsSdk()
-    this.fingerprintMock = useMock
+    if (await this.isFingerprintHealthy()) {
+      await this.syncFingerprintHealth()
+      const status: ServiceStatus = {
+        phase: 'ready',
+        detail: this.fingerprintMock
+          ? 'Fingerprint service already running (mock).'
+          : 'Fingerprint service already running.',
+        ready: true,
+        fingerprintMock: this.fingerprintMock,
+      }
+      this.emit(status)
+      return status
+    }
 
-    const exePath = path.join(this.resources.fingerprint, binName('fingerprint-service'))
-    const pyScript = path.join(this.resources.fingerprint, 'zkfinger_service.py')
+    const useMock = this.shouldUseMockFingerprint()
+    this.fingerprintMock = useMock
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -430,43 +553,92 @@ export class ServiceSupervisor {
       env.PATH = `${this.resources.sdkWindows}${path.delimiter}${env.PATH || ''}`
       env.ZKFP_LIB_DIR = this.resources.sdkWindows
     }
-
-    let child: ChildProcess
-    if (fs.existsSync(exePath)) {
-      child = spawn(exePath, [], {
-        cwd: this.resources.fingerprint,
-        env,
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-    } else if (fs.existsSync(pyScript)) {
-      const python = process.platform === 'win32' ? 'python' : 'python3'
-      child = spawn(python, [pyScript], {
-        cwd: this.resources.fingerprint,
-        env,
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-    } else {
-      throw new Error(
-        `Fingerprint service not found at ${exePath} or ${pyScript}`
-      )
+    if (this.hasLinuxSdk()) {
+      env.LD_LIBRARY_PATH = `${this.resources.sdkLinux}${path.delimiter}${env.LD_LIBRARY_PATH || ''}`
+      env.ZKFP_LIB_DIR = this.resources.sdkLinux
     }
 
+    const child = this.spawnFingerprintProcess(env)
     this.track(child)
+
+    ensureDir(this.userData.logs)
     const logPath = path.join(this.userData.logs, 'fingerprint.log')
     const logStream = fs.createWriteStream(logPath, { flags: 'a' })
     child.stdout?.pipe(logStream)
     child.stderr?.pipe(logStream)
 
-    await waitFor('fingerprint /health', async () => {
-      const res = await httpGet(`http://127.0.0.1:${FP_PORT}/health`)
-      return res.status === 200
-    }, 45_000)
+    let healthSettled = false
+    const earlyExit = new Promise<never>((_, reject) => {
+      child.once('exit', (code, signal) => {
+        if (healthSettled) return
+        reject(
+          new Error(
+            `Fingerprint service exited before becoming healthy (code ${code}, signal ${signal}). See fingerprint.log.`
+          )
+        )
+      })
+    })
+
+    try {
+      await Promise.race([
+        waitFor(
+          'fingerprint /health',
+          async () => {
+            const res = await httpGet(`http://127.0.0.1:${FP_PORT}/health`)
+            return res.status === 200
+          },
+          90_000
+        ),
+        earlyExit,
+      ])
+    } catch (err) {
+      this.killChild(child)
+      throw err
+    } finally {
+      healthSettled = true
+    }
+
+    await this.syncFingerprintHealth()
+    const status: ServiceStatus = {
+      phase: 'ready',
+      detail: this.fingerprintMock
+        ? 'Fingerprint service ready (mock — scanner SDK not found).'
+        : 'Fingerprint service ready.',
+      ready: true,
+      fingerprintMock: this.fingerprintMock,
+    }
+    this.emit(status)
+    return status
+  }
+
+  private killChild(child: ChildProcess): void {
+    try {
+      if (process.platform === 'win32' && child.pid) {
+        spawn('taskkill', ['/pid', String(child.pid), '/f', '/t'], {
+          windowsHide: true,
+          stdio: 'ignore',
+        })
+        return
+      }
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, 'SIGTERM')
+        } catch {
+          child.kill('SIGTERM')
+        }
+      }
+    } catch {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        // ignore
+      }
+    }
   }
 
   async startAll(): Promise<ServiceStatus> {
     this.stopping = false
+    this.bundledStackStarted = true
     try {
       const creds = this.loadOrCreateCredentials()
       await this.ensurePostgresqlLayout()
@@ -479,7 +651,7 @@ export class ServiceSupervisor {
       const status: ServiceStatus = {
         phase: 'ready',
         detail: this.fingerprintMock
-          ? 'Services ready (fingerprint mock — Windows ZKFinger DLLs not found).'
+          ? 'Services ready (fingerprint mock — scanner SDK not found).'
           : 'All services ready.',
         ready: true,
         fingerprintMock: this.fingerprintMock,
@@ -504,27 +676,12 @@ export class ServiceSupervisor {
     this.emit({ phase: 'shutdown', detail: 'Stopping services…', ready: false })
 
     for (const child of [...this.children].reverse()) {
-      try {
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', String(child.pid), '/f', '/t'], {
-            windowsHide: true,
-            stdio: 'ignore',
-          })
-        } else if (child.pid) {
-          process.kill(-child.pid, 'SIGTERM')
-        } else {
-          child.kill('SIGTERM')
-        }
-      } catch {
-        try {
-          child.kill('SIGKILL')
-        } catch {
-          // ignore
-        }
-      }
+      this.killChild(child)
     }
     this.children = []
 
-    await this.stopPostgres()
+    if (this.bundledStackStarted) {
+      await this.stopPostgres()
+    }
   }
 }

@@ -5,8 +5,8 @@ import {
   Users,
   Fingerprint,
   UserPlus,
-  ClipboardCheck,
   FileBarChart,
+  Timer,
   Menu,
   X,
 } from 'lucide-react'
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/workers', label: 'Workers', icon: Users },
   { to: '/attendance', label: 'Attendance', icon: Fingerprint },
+  { to: '/after-hours', label: 'After 6:00', icon: Timer },
   { to: '/reports', label: 'Reports', icon: FileBarChart },
   { to: '/register', label: 'Register', icon: UserPlus },
 ]
@@ -24,7 +25,11 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/': { title: "Today's Attendance", subtitle: 'Live site overview & payroll approval' },
   '/workers': { title: 'Workers', subtitle: 'Manage workforce roster' },
   '/attendance': { title: 'Record Attendance', subtitle: 'Scan or search to clock events' },
-  '/reports': { title: 'Reports & Analytics', subtitle: 'Export and analyze data' },
+  '/after-hours': {
+    title: 'After 6:00',
+    subtitle: 'Decide overtime vs delayed leaving',
+  },
+  '/reports': { title: 'Reports', subtitle: 'Daily, monthly, and payroll tables' },
   '/register': { title: 'Register Worker', subtitle: 'Enroll a new team member' },
 }
 

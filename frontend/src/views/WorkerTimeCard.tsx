@@ -249,9 +249,7 @@ const WorkerTimeCard: React.FC = () => {
                                         <th>Exit</th>
                                         <th>Late</th>
                                         <th>Hours</th>
-                                        <th>Regular pay</th>
-                                        <th>Deductions</th>
-                                        <th>Net pay</th>
+                                        <th>Pay</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -277,10 +275,6 @@ const WorkerTimeCard: React.FC = () => {
                                                 ) : '—'}
                                             </td>
                                             <td>{formatHours(summary.regular_hours_net)}h</td>
-                                            <td>{formatCurrency(summary.regular_pay)}</td>
-                                            <td style={{ color: 'var(--rose)' }}>
-                                                {summary.total_deductions > 0 ? formatCurrency(summary.total_deductions) : '—'}
-                                            </td>
                                             <td style={{ fontWeight: 700 }}>{formatCurrency(summary.net_pay)}</td>
                                         </tr>
                                     ))}
@@ -289,8 +283,6 @@ const WorkerTimeCard: React.FC = () => {
                                     <tr style={{ background: 'var(--surface-2)', fontWeight: 700 }}>
                                         <td colSpan={6}><strong>TOTALS</strong></td>
                                         <td><strong>{formatHours(totals.totalHours)}h</strong></td>
-                                        <td><strong>{formatCurrency(totals.totalPay)}</strong></td>
-                                        <td style={{ color: 'var(--rose)' }}><strong>{formatCurrency(totals.totalDeductions)}</strong></td>
                                         <td><strong>{formatCurrency(totals.netPay)}</strong></td>
                                     </tr>
                                 </tfoot>

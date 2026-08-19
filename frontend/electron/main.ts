@@ -99,21 +99,36 @@ async function boot(): Promise<void> {
 
   splashWindow = createSplash()
 
-  // Dev mode with UBAKA_SKIP_SERVICES=1: UI only (use start-all.sh for API)
+  supervisor = new ServiceSupervisor()
+  supervisor.onStatus(broadcastStatus)
+
+  // Dev UI: skip bundled Postgres/API (use npm run dev:api), but always
+  // start the fingerprint sidecar so the scanner is ready in Electron.
   if (isDev && process.env.UBAKA_SKIP_SERVICES === '1') {
-    broadcastStatus({
-      phase: 'ready',
-      detail: 'Dev UI only (services skipped).',
-      ready: true,
-    })
+    try {
+      const fp = await supervisor.startFingerprint()
+      broadcastStatus({
+        phase: 'ready',
+        detail: fp.fingerprintMock
+          ? 'Dev UI ready (fingerprint mock).'
+          : 'Dev UI ready. Fingerprint service started.',
+        ready: true,
+        fingerprintMock: fp.fingerprintMock,
+      })
+    } catch (err) {
+      const message = (err as Error).message || String(err)
+      broadcastStatus({
+        phase: 'ready',
+        detail: `Dev UI ready. Fingerprint service failed to start: ${message}`,
+        ready: true,
+        error: message,
+      })
+    }
     mainWindow = createMainWindow()
     splashWindow.close()
     splashWindow = null
     return
   }
-
-  supervisor = new ServiceSupervisor()
-  supervisor.onStatus(broadcastStatus)
 
   try {
     const status = await supervisor.startAll()

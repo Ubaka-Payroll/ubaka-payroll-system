@@ -188,6 +188,7 @@ export const openapiSpec = {
           break_minutes: { type: 'integer', nullable: true },
           hours_worked: { type: 'number', nullable: true },
           daily_wage: { type: 'number', nullable: true },
+          late_minutes: { type: 'integer' },
         },
       },
       DailyReportMeta: {
@@ -196,7 +197,9 @@ export const openapiSpec = {
           id: { type: 'string' },
           ownerId: { type: 'string' },
           engineerId: { type: 'string' },
+          engineerName: { type: 'string' },
           siteName: { type: 'string' },
+          siteLocation: { type: 'string' },
           reportDate: { type: 'string', format: 'date' },
           workersPresent: { type: 'integer' },
           completedShifts: { type: 'integer' },
@@ -465,7 +468,7 @@ export const openapiSpec = {
         summary: 'Site Owner dashboard overview',
         security: bearerAuth,
         responses: {
-          200: { description: 'Subscription, engineer/key counts and latest reports' },
+          200: { description: 'Site snapshot, live attendance, engineer/key counts and latest reports' },
           403: { $ref: '#/components/responses/Forbidden' },
         },
       },
@@ -524,6 +527,28 @@ export const openapiSpec = {
               },
             },
           },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/owner/site': {
+      get: {
+        tags: ['Owner'],
+        summary: 'Desktop site configuration currently linked for presentation',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Site name, hours, engineer, worker count' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/owner/workers': {
+      get: {
+        tags: ['Owner'],
+        summary: 'Active workers from the Field Engineer desktop roster',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Worker roster' },
           403: { $ref: '#/components/responses/Forbidden' },
         },
       },

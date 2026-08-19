@@ -2,6 +2,24 @@ import api from './api'
 
 export type EventType = 'ENTRY' | 'EXIT' | 'LEAVE_SITE' | 'RETURN_TO_SITE'
 
+export interface AfterHoursCase {
+    workerId: number
+    workerNumber: string
+    fullName: string
+    classification: string
+    hourlyRate: number
+    workDate: string
+    entryTime: string | null
+    exitTime: string | null
+    hoursWorked: number | null
+    wageAmount: number | null
+    decision: 'OVERTIME' | 'DELAYED_LEAVE' | null
+    overtimeEndTime: string | null
+    notes: string | null
+    reviewedAt: string | null
+    reviewedBy: string | null
+}
+
 export interface AttendanceEvent {
     id: number
     worker_id: number
@@ -66,8 +84,13 @@ export const attendanceService = {
         return response.data.data
     },
 
-    async getDailySummary(date?: Date): Promise<any[]> {
-        const dateStr = date ? date.toISOString().split('T')[0] : undefined
+    async getDailySummary(date?: Date | string): Promise<any[]> {
+        const dateStr =
+            typeof date === 'string'
+                ? date
+                : date
+                  ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+                  : undefined
         const response = await api.get('/attendance/summary', {
             params: { date: dateStr },
         })
@@ -87,6 +110,29 @@ export const attendanceService = {
         if (criteria.classification) params.classification = criteria.classification
 
         const response = await api.get('/attendance/search', { params })
+        return response.data.data
+    },
+
+    async getAfterHoursQueue(): Promise<{
+        afterHoursToday: boolean
+        workEnd: string
+        pending: AfterHoursCase[]
+        overtimeOpen: AfterHoursCase[]
+        resolved: AfterHoursCase[]
+    }> {
+        const response = await api.get('/attendance/after-hours')
+        return response.data.data
+    },
+
+    async resolveAfterHours(input: {
+        workerId: number
+        date: string
+        decision: 'OVERTIME' | 'DELAYED_LEAVE'
+        overtimeEndTime?: string | null
+        notes?: string
+        reviewedBy?: string
+    }) {
+        const response = await api.post('/attendance/after-hours', input)
         return response.data.data
     },
 }

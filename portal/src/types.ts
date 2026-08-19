@@ -67,7 +67,9 @@ export interface DailyReportMeta {
   id: string
   ownerId: string
   engineerId: string
+  engineerName: string
   siteName: string
+  siteLocation?: string
   reportDate: string
   workersPresent: number
   completedShifts: number
@@ -87,8 +89,30 @@ export interface DailyReportRow {
   break_minutes: number | null
   hours_worked: number | null
   daily_wage: number | null
+  late_minutes?: number
 }
 
 export interface DailyReport extends DailyReportMeta {
   rows: DailyReportRow[]
+}
+
+export interface SiteSnapshot {
+  siteName: string
+  siteLocation: string
+  openingTime: string
+  closingTime: string
+  engineerId: string
+  engineerName: string
+  workerCount: number
+}
+
+export interface SiteWorker {
+  id: number
+  workerNumber: string
+  nid: string
+  fullName: string
+  classification: string
+  phoneNumber: string | null
+  hourlyRate: number
+  isActive: boolean
 }

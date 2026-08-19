@@ -224,4 +224,67 @@ export class AttendanceController {
             res.status(500).json(response)
         }
     }
+
+    getAfterHoursQueue = async (_req: Request, res: Response): Promise<void> => {
+        try {
+            const data = await this.attendanceService.getAfterHoursQueue()
+            const response: ApiResponse = {
+                success: true,
+                data,
+            }
+            res.json(response)
+        } catch (error: any) {
+            const response: ApiResponse = {
+                success: false,
+                error: error.message,
+            }
+            res.status(500).json(response)
+        }
+    }
+
+    resolveAfterHours = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { workerId, date, decision, overtimeEndTime, notes, reviewedBy } = req.body
+
+            if (!workerId || !date || !decision) {
+                const response: ApiResponse = {
+                    success: false,
+                    error: 'workerId, date, and decision are required',
+                }
+                res.status(400).json(response)
+                return
+            }
+
+            if (decision !== 'OVERTIME' && decision !== 'DELAYED_LEAVE') {
+                const response: ApiResponse = {
+                    success: false,
+                    error: 'decision must be OVERTIME or DELAYED_LEAVE',
+                }
+                res.status(400).json(response)
+                return
+            }
+
+            const review = await this.attendanceService.resolveAfterHours({
+                workerId: Number(workerId),
+                date,
+                decision,
+                overtimeEndTime,
+                notes,
+                reviewedBy,
+            })
+
+            const response: ApiResponse = {
+                success: true,
+                data: review,
+                message: 'After-hours decision saved',
+            }
+            res.json(response)
+        } catch (error: any) {
+            const response: ApiResponse = {
+                success: false,
+                error: error.message,
+            }
+            res.status(400).json(response)
+        }
+    }
 }

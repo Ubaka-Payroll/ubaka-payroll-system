@@ -14,6 +14,7 @@ export type ResourcePaths = {
   node: string
   fingerprint: string
   sdkWindows: string
+  sdkLinux: string
   databaseSql: string
 }
 
@@ -42,6 +43,7 @@ export function resolveResources(): ResourcePaths {
       node: path.join(root, 'node'),
       fingerprint: path.join(root, 'fingerprint'),
       sdkWindows: path.join(root, 'sdk', 'windows'),
+      sdkLinux: path.join(root, 'sdk', 'linux'),
       databaseSql: path.join(root, 'backend', 'database'),
     }
   }
@@ -54,6 +56,7 @@ export function resolveResources(): ResourcePaths {
     node: path.join(root, 'vendor', 'node-win'),
     fingerprint: path.join(root, 'fingerprint-service'),
     sdkWindows: path.join(root, 'resources', 'sdk', 'windows'),
+    sdkLinux: path.join(root, 'resources', 'sdk', 'SDK', 'lib-x64'),
     databaseSql: path.join(root, 'backend', 'database'),
   }
 }

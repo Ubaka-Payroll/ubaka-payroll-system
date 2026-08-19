@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { User, Fingerprint, Briefcase, MapPinned, RotateCcw, UserPlus, Loader2 } from 'lucide-react'
 import { workerService } from '../services/workerService'
 import fingerprintService from '../services/fingerprintService'
 import { useToast } from '../components/Toast'
+import ClassificationField, {
+  type ClassificationFieldHandle,
+} from '../components/ClassificationField'
 
 interface WorkerFormData {
   workerNumber: string
@@ -16,17 +19,6 @@ interface WorkerFormData {
   emergencyContact: string
   emergencyPhone: string
 }
-
-const classifications = [
-  'MASON',
-  'CARPENTER',
-  'ELECTRICIAN',
-  'PLUMBER',
-  'LABORER',
-  'SUPERVISOR',
-  'OPERATOR',
-  'OTHER',
-]
 
 const WorkerRegistration: React.FC = () => {
   const toast = useToast()
@@ -44,6 +36,7 @@ const WorkerRegistration: React.FC = () => {
   })
   const [loading, setLoading] = useState(false)
   const [fingerprintScanning, setFingerprintScanning] = useState(false)
+  const classificationRef = useRef<ClassificationFieldHandle>(null)
 
   useEffect(() => {
     loadNextWorkerNumber()
@@ -115,6 +108,16 @@ const WorkerRegistration: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    let classification = formData.classification
+    if (classification === 'OTHER') {
+      const committed = await classificationRef.current?.commitPending()
+      if (!committed) {
+        toast.error('Enter a name for the new classification')
+        return
+      }
+      classification = committed
+    }
+
     const validationError = validateForm()
     if (validationError) {
       toast.error(validationError)
@@ -128,7 +131,7 @@ const WorkerRegistration: React.FC = () => {
         fullName: formData.fullName.trim(),
         nid: formData.nid.trim(),
         fingerprintId: formData.fingerprintId.trim(),
-        classification: formData.classification,
+        classification,
         phoneNumber: formData.phoneNumber.trim() || undefined,
         hourlyRate: parseFloat(formData.hourlyRate),
         address: formData.address.trim() || undefined,
@@ -270,20 +273,17 @@ const WorkerRegistration: React.FC = () => {
                 <label htmlFor="classification">
                   Classification <span className="required">*</span>
                 </label>
-                <select
+                <ClassificationField
+                  ref={classificationRef}
                   id="classification"
                   name="classification"
                   value={formData.classification}
-                  onChange={handleInputChange}
                   required
                   disabled={loading}
-                >
-                  {classifications.map(cls => (
-                    <option key={cls} value={cls}>
-                      {cls}
-                    </option>
-                  ))}
-                </select>
+                  onChange={classification =>
+                    setFormData(prev => ({ ...prev, classification }))
+                  }
+                />
               </div>
               <div className="form-group">
                 <label htmlFor="hourlyRate">

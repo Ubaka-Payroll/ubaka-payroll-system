@@ -9,6 +9,7 @@ import WorkerDetails from './views/WorkerDetails'
 import AttendanceRecording from './views/AttendanceRecording'
 import WorkerTimeCard from './views/WorkerTimeCard'
 import Reports from './views/Reports'
+import AfterHours from './views/AfterHours'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/workers/:id/timecard" element={<WorkerTimeCard />} />
             <Route path="/register" element={<WorkerRegistration />} />
             <Route path="/attendance" element={<AttendanceRecording />} />
+            <Route path="/after-hours" element={<AfterHours />} />
             <Route path="/reports" element={<Reports />} />
           </Route>
         </Routes>
