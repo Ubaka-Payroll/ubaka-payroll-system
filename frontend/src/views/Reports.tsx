@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import reportService, { MonthlyReportData, PayrollExportData } from '../services/reportService'
 import { attendanceService } from '../services/attendanceService'
 import { LoadingState, EmptyState } from '../components/ui'
@@ -7,6 +7,8 @@ import { ClassificationFilter } from '../components/ClassificationFilter'
 import { useClassificationFilter } from '../hooks/useClassificationFilter'
 import { downloadCsv } from '../lib/downloadCsv'
 import { useToast } from '../components/Toast'
+
+const PAYROLL_PAGE_SIZE = 15
 
 type ReportType = 'daily' | 'monthly' | 'payroll'
 
@@ -90,6 +92,7 @@ const Reports: React.FC = () => {
   })
   const [payrollEndDate, setPayrollEndDate] = useState(localDateString())
   const [payrollData, setPayrollData] = useState<PayrollExportData | null>(null)
+  const [payrollPage, setPayrollPage] = useState(1)
 
   const dailyClass = useClassificationFilter(dailyRows ?? EMPTY_DAILY, row => row.classification)
   const monthlyClass = useClassificationFilter(
@@ -100,6 +103,31 @@ const Reports: React.FC = () => {
     payrollData?.workers ?? EMPTY_PAYROLL,
     worker => worker.classification
   )
+
+  const payrollTotals = useMemo(() => {
+    return payrollClass.filtered.reduce(
+      (acc, worker) => {
+        acc.workers += 1
+        acc.days += Number(worker.days_worked) || 0
+        acc.hours += Number(worker.total_hours) || 0
+        acc.regularPay += Number(worker.regular_pay) || 0
+        acc.netPay += Number(worker.net_pay) || 0
+        return acc
+      },
+      { workers: 0, days: 0, hours: 0, regularPay: 0, netPay: 0 }
+    )
+  }, [payrollClass.filtered])
+
+  const payrollPageCount = Math.max(1, Math.ceil(payrollClass.filtered.length / PAYROLL_PAGE_SIZE))
+  const payrollPageSafe = Math.min(payrollPage, payrollPageCount)
+  const payrollPageRows = payrollClass.filtered.slice(
+    (payrollPageSafe - 1) * PAYROLL_PAGE_SIZE,
+    payrollPageSafe * PAYROLL_PAGE_SIZE
+  )
+
+  useEffect(() => {
+    setPayrollPage(1)
+  }, [payrollClass.selected, payrollData])
 
   const loadDailyReport = async (date = dailyDate) => {
     setLoading(true)
@@ -482,21 +510,81 @@ const Reports: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {payrollClass.filtered.map((worker, index) => (
-                        <tr key={`${worker.worker_number}-${index}`}>
-                          <td>
-                            <strong>{worker.worker_number}</strong>
+                      {payrollPageRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                            No workers in this report
                           </td>
-                          <td>{worker.full_name}</td>
-                          <td>{formatCurrency(worker.hourly_rate)}</td>
-                          <td>{worker.days_worked}</td>
-                          <td>{formatHours(worker.total_hours)}h</td>
-                          <td>{formatCurrency(worker.regular_pay)}</td>
-                          <td style={{ fontWeight: 700 }}>{formatCurrency(worker.net_pay)}</td>
                         </tr>
-                      ))}
+                      ) : (
+                        payrollPageRows.map((worker, index) => (
+                          <tr key={`${worker.worker_number}-${index}`}>
+                            <td>
+                              <strong>{worker.worker_number}</strong>
+                            </td>
+                            <td>{worker.full_name}</td>
+                            <td>{formatCurrency(worker.hourly_rate)}</td>
+                            <td>{worker.days_worked}</td>
+                            <td>{formatHours(worker.total_hours)}h</td>
+                            <td>{formatCurrency(worker.regular_pay)}</td>
+                            <td style={{ fontWeight: 700 }}>{formatCurrency(worker.net_pay)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
+                    <tfoot>
+                      <tr className="data-table__totals">
+                        <td>
+                          <strong>Total</strong>
+                        </td>
+                        <td>{payrollTotals.workers} worker{payrollTotals.workers === 1 ? '' : 's'}</td>
+                        <td />
+                        <td>
+                          <strong>{payrollTotals.days}</strong>
+                        </td>
+                        <td>
+                          <strong>{formatHours(payrollTotals.hours)}h</strong>
+                        </td>
+                        <td>
+                          <strong>{formatCurrency(payrollTotals.regularPay)}</strong>
+                        </td>
+                        <td>
+                          <strong>{formatCurrency(payrollTotals.netPay)}</strong>
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
+                </div>
+
+                <div className="report-footer">
+                  <div className="report-pagination">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={payrollPageSafe <= 1}
+                      onClick={() => setPayrollPage(p => Math.max(1, p - 1))}
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft size={16} />
+                      Prev
+                    </button>
+                    <span className="report-pagination__meta">
+                      Page {payrollPageSafe} of {payrollPageCount}
+                      <span className="report-pagination__count">
+                        {payrollClass.filtered.length} worker{payrollClass.filtered.length === 1 ? '' : 's'}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={payrollPageSafe >= payrollPageCount}
+                      onClick={() => setPayrollPage(p => Math.min(payrollPageCount, p + 1))}
+                      aria-label="Next page"
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

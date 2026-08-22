@@ -15,19 +15,52 @@ export interface IdentifyResult {
     confidence?: number
 }
 
+function apiErrorMessage(err: any, fallback: string): string {
+    return (
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        fallback
+    )
+}
+
 const fingerprintService = {
     /**
-     * Triggers a 3-scan enrollment on the hardware scanner.
-     * The user must place their finger 3 times.
-     * Returns a Base64-encoded template string ready to submit to the backend.
-     * Calls POST /api/fingerprint/capture/enroll
+     * Step-by-step enrollment: capture 3 samples, then merge.
+     * onProgress(step) is called before each finger placement (1..3).
      */
-    async captureForEnrollment(): Promise<{ templateId: string; template: string; quality: number }> {
-        const response = await api.post('/fingerprint/capture/enroll')
-        if (!response.data?.success) {
-            throw new Error(response.data?.error || 'Enrollment capture failed')
+    async captureForEnrollment(
+        onProgress?: (step: number, total: number) => void
+    ): Promise<{ templateId: string; template: string; quality: number }> {
+        const samples: string[] = []
+        const total = 3
+
+        for (let step = 1; step <= total; step += 1) {
+            onProgress?.(step, total)
+            try {
+                const response = await api.post('/fingerprint/capture/sample', {}, { timeout: 60_000 })
+                if (!response.data?.success || !response.data?.data?.template) {
+                    throw new Error(response.data?.error || `Sample ${step} failed`)
+                }
+                samples.push(response.data.data.template)
+                if (step < total) {
+                    // Give the UI a beat to show "lift finger" before next poll starts
+                    await new Promise(resolve => window.setTimeout(resolve, 400))
+                }
+            } catch (err: any) {
+                throw new Error(apiErrorMessage(err, `Sample ${step} of ${total} failed`))
+            }
         }
-        return response.data.data as { templateId: string; template: string; quality: number }
+
+        try {
+            const response = await api.post('/fingerprint/enroll/merge', { templates: samples })
+            if (!response.data?.success) {
+                throw new Error(response.data?.error || 'Failed to merge fingerprint samples')
+            }
+            return response.data.data as { templateId: string; template: string; quality: number }
+        } catch (err: any) {
+            throw new Error(apiErrorMessage(err, 'Failed to merge fingerprint samples'))
+        }
     },
 
     /**
@@ -36,11 +69,15 @@ const fingerprintService = {
      * Calls POST /api/fingerprint/identify
      */
     async identify(): Promise<IdentifyResult> {
-        const response = await api.post('/fingerprint/identify')
-        if (!response.data?.success) {
-            throw new Error(response.data?.error || 'Fingerprint not recognized')
+        try {
+            const response = await api.post('/fingerprint/identify', {}, { timeout: 40_000 })
+            if (!response.data?.success) {
+                throw new Error(response.data?.error || 'Fingerprint not recognized')
+            }
+            return response.data.data as IdentifyResult
+        } catch (err: any) {
+            throw new Error(apiErrorMessage(err, 'Fingerprint not recognized'))
         }
-        return response.data.data as IdentifyResult
     },
 
     /**

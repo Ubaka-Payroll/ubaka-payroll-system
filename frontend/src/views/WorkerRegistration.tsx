@@ -36,6 +36,7 @@ const WorkerRegistration: React.FC = () => {
   })
   const [loading, setLoading] = useState(false)
   const [fingerprintScanning, setFingerprintScanning] = useState(false)
+  const [fingerprintStep, setFingerprintStep] = useState<string | null>(null)
   const classificationRef = useRef<ClassificationFieldHandle>(null)
 
   useEffect(() => {
@@ -61,11 +62,22 @@ const WorkerRegistration: React.FC = () => {
   const handleFingerprintScan = async () => {
     try {
       setFingerprintScanning(true)
-      const { template } = await fingerprintService.captureForEnrollment()
+      setFingerprintStep('Place the same finger on the scanner (1 of 3)…')
+      const { template } = await fingerprintService.captureForEnrollment((step, total) => {
+        if (step === 1) {
+          setFingerprintStep(`Place your finger on the scanner (${step} of ${total})…`)
+        } else {
+          setFingerprintStep(
+            `Lift your finger, then place the same finger again (${step} of ${total})…`
+          )
+        }
+      })
       setFormData(prev => ({ ...prev, fingerprintId: template }))
-      toast.success('Fingerprint captured — place the same finger three times when prompted.')
+      setFingerprintStep(null)
+      toast.success('Fingerprint enrolled successfully')
     } catch (err: any) {
-      toast.error(err.message || 'Fingerprint capture failed')
+      setFingerprintStep(null)
+      toast.error(err?.message || 'Fingerprint capture failed')
     } finally {
       setFingerprintScanning(false)
     }
@@ -256,7 +268,8 @@ const WorkerRegistration: React.FC = () => {
                 </button>
               </div>
               <span className="field-hint">
-                You will be asked to place the same finger three times
+                {fingerprintStep ||
+                  'Click Scan, then place and fully lift the same finger three times'}
               </span>
             </div>
           </section>

@@ -472,7 +472,7 @@ export class AttendanceService {
 
         return {
             afterHoursToday,
-            workEnd: '18:00',
+            workEnd: '16:00',
             pending,
             overtimeOpen,
             resolved: resolved.filter(r => {

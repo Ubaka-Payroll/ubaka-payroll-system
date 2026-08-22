@@ -586,53 +586,128 @@ def capture_for_verification():
     if err:
         return err
 
-    try:
-        if MODE == "PRODUCTION" and native_scanner:
-            logger.info("PRODUCTION: Verification capture via native SDK …")
-            try:
-                tmp, _img = native_scanner.acquire_fingerprint(timeout_sec=CAPTURE_TIMEOUT)
-            except RuntimeError as capture_err:
-                logger.warning(f"Capture error, reconnecting once: {capture_err}")
-                if not reconnect_scanner(reason="capture-error"):
-                    raise
-                tmp, _img = native_scanner.acquire_fingerprint(timeout_sec=CAPTURE_TIMEOUT)
-            template_b64 = base64.b64encode(tmp).decode('utf-8')
+    with _scanner_lock:
+        try:
+            if MODE == "PRODUCTION" and native_scanner:
+                logger.info("PRODUCTION: Verification capture via native SDK …")
+                try:
+                    tmp, _img = native_scanner.acquire_fingerprint(timeout_sec=CAPTURE_TIMEOUT)
+                except RuntimeError as capture_err:
+                    logger.warning(f"Capture error, reconnecting once: {capture_err}")
+                    if not reconnect_scanner(reason="capture-error"):
+                        raise
+                    tmp, _img = native_scanner.acquire_fingerprint(timeout_sec=CAPTURE_TIMEOUT)
+                template_b64 = base64.b64encode(tmp).decode('utf-8')
+                return jsonify({
+                    'success': True,
+                    'template': template_b64,
+                    'quality': 85,
+                    'mode': 'PRODUCTION',
+                    'usb': _usb_payload(),
+                })
+
+            if MODE == "PRODUCTION" and zkfp:
+                logger.info("PRODUCTION: Verification capture via pyzkfp …")
+                tmp, _img = _acquire_with_pyzkfp(CAPTURE_TIMEOUT)
+                template_b64 = base64.b64encode(tmp).decode('utf-8')
+                return jsonify({
+                    'success': True,
+                    'template': template_b64,
+                    'quality': 85,
+                    'mode': 'PRODUCTION'
+                })
+
+            logger.warning("MOCK: Returning simulated verification scan")
+            scan_id = f"SCAN{int(datetime.now().timestamp())}"
+            template_b64 = base64.b64encode(f"mock_scan_{scan_id}".encode()).decode()
             return jsonify({
                 'success': True,
                 'template': template_b64,
-                'quality': 85,
-                'mode': 'PRODUCTION',
+                'quality': 80,
+                'mode': 'MOCK'
+            })
+
+        except TimeoutError as e:
+            return jsonify({'success': False, 'error': str(e)}), 408
+        except Exception as e:
+            logger.error(f"Verification capture failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e), 'usb': _usb_payload()}), 500
+
+
+@app.route('/scanner/capture/sample', methods=['POST'])
+def capture_sample():
+    """Single finger placement — used for step-by-step enrollment."""
+    return capture_for_verification()
+
+
+@app.route('/scanner/enroll/merge', methods=['POST'])
+def merge_enrollment_templates():
+    """Merge three sample templates into one enrollment template."""
+    err = _require_ready()
+    if err:
+        return err
+
+    body = request.get_json(silent=True) or {}
+    templates_b64 = body.get('templates') or []
+    if not isinstance(templates_b64, list) or len(templates_b64) != 3:
+        return jsonify({
+            'success': False,
+            'error': 'Exactly three fingerprint samples are required',
+        }), 400
+
+    with _scanner_lock:
+        try:
+            templates = [base64.b64decode(item) for item in templates_b64]
+            if any(not item for item in templates):
+                return jsonify({'success': False, 'error': 'One or more samples are empty'}), 400
+
+            # Only reject exact duplicates (finger never lifted — same buffer reused).
+            # High match scores between different presses of the same finger are normal.
+            if templates[0] == templates[1] or templates[1] == templates[2] or templates[0] == templates[2]:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Duplicate scan detected — lift your finger fully '
+                        'between each of the 3 scans, then try again'
+                    ),
+                }), 400
+
+            if MODE == "PRODUCTION" and native_scanner:
+                enrollment = native_scanner.merge_templates(*templates)
+            elif MODE == "PRODUCTION" and zkfp:
+                enrollment_template, _ = zkfp.DBMerge(*templates)
+                if enrollment_template is None:
+                    return jsonify({'success': False, 'error': 'Template merge failed'}), 400
+                enrollment = (
+                    bytes(enrollment_template)
+                    if not isinstance(enrollment_template, (bytes, bytearray))
+                    else enrollment_template
+                )
+            else:
+                enrollment = templates[0]
+
+            template_b64 = base64.b64encode(enrollment).decode('utf-8')
+            return jsonify({
+                'success': True,
+                'template_id': f"FP{int(datetime.now().timestamp())}",
+                'template': template_b64,
+                'quality': 90,
+                'mode': MODE,
                 'usb': _usb_payload(),
             })
-
-        if MODE == "PRODUCTION" and zkfp:
-            logger.info("PRODUCTION: Verification capture via pyzkfp …")
-            tmp, _img = _acquire_with_pyzkfp(CAPTURE_TIMEOUT)
-            template_b64 = base64.b64encode(tmp).decode('utf-8')
-            return jsonify({
-                'success': True,
-                'template': template_b64,
-                'quality': 85,
-                'mode': 'PRODUCTION'
-            })
-
-        logger.warning("MOCK: Returning simulated verification scan")
-        scan_id = f"SCAN{int(datetime.now().timestamp())}"
-        template_b64 = base64.b64encode(f"mock_scan_{scan_id}".encode()).decode()
-        return jsonify({
-            'success': True,
-            'template': template_b64,
-            'quality': 80,
-            'mode': 'MOCK'
-        })
-
-    except TimeoutError as e:
-        return jsonify({'success': False, 'error': str(e)}), 408
-    except Exception as e:
-        logger.error(f"Verification capture failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e), 'usb': _usb_payload()}), 500
+        except Exception as e:
+            logger.error(f"Enrollment merge failed: {e}")
+            import traceback
+            traceback.print_exc()
+            msg = str(e)
+            if 'DBMerge' in msg or '-22' in msg:
+                msg = (
+                    'Could not merge the 3 scans — lift your finger fully between '
+                    'each placement and use the same finger each time'
+                )
+            return jsonify({'success': False, 'error': msg, 'usb': _usb_payload()}), 500
 
 
 @app.route('/scanner/match', methods=['POST'])

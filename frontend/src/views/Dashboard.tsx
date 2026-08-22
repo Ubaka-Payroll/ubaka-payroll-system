@@ -233,11 +233,11 @@ const Dashboard: React.FC = () => {
             <h2 className="panel__title">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Timer size={18} />
-                After 6:00 — {pendingAfterHours} worker{pendingAfterHours === 1 ? '' : 's'} need a decision
+                After 4:00 — {pendingAfterHours} worker{pendingAfterHours === 1 ? '' : 's'} need a decision
               </div>
             </h2>
             <Link to="/after-hours" className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem' }}>
-              Open After 6:00
+              Open After 4:00
             </Link>
           </div>
         </div>

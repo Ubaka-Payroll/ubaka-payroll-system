@@ -291,9 +291,14 @@ class NativeZKFP:
         self,
         timeout_sec: float = 30.0,
         poll_interval: float = 0.1,
+        require_lift_after: bool = True,
+        lift_timeout_sec: float = 20.0,
     ) -> Tuple[bytes, bytes]:
         if not self.dev_handle or self._img_buf is None:
             raise RuntimeError("Device not opened")
+
+        # If the previous scan left a finger on the sensor, wait for lift first.
+        self._wait_for_finger_lift(timeout_sec=min(8.0, lift_timeout_sec), poll_interval=poll_interval)
 
         deadline = time.time() + timeout_sec
         tmpl_buf = (ctypes.c_ubyte * MAX_TEMPLATE_SIZE)()
@@ -311,6 +316,12 @@ class NativeZKFP:
             if ret == ZKFP_ERR_OK and tmpl_len.value > 0:
                 template = bytes(tmpl_buf[: tmpl_len.value])
                 image = bytes(self._img_buf)
+                if require_lift_after:
+                    # Live20R reuses the same press unless the finger is lifted.
+                    self._wait_for_finger_lift(
+                        timeout_sec=lift_timeout_sec,
+                        poll_interval=poll_interval,
+                    )
                 return template, image
             if ret not in (ZKFP_ERR_OK, ZKFP_ERR_CAPTURE):
                 raise RuntimeError(f"ZKFPM_AcquireFingerprint failed: {ret}")
@@ -320,6 +331,44 @@ class NativeZKFP:
             f"No fingerprint captured within {timeout_sec:.0f}s — "
             "place finger firmly on the scanner"
         )
+
+    def _wait_for_finger_lift(
+        self,
+        timeout_sec: float = 20.0,
+        poll_interval: float = 0.1,
+        clear_reads: int = 4,
+    ) -> None:
+        """Block until the sensor reports no finger for several polls in a row."""
+        if not self.dev_handle or self._img_buf is None:
+            return
+
+        deadline = time.time() + timeout_sec
+        empty = 0
+        tmpl_buf = (ctypes.c_ubyte * MAX_TEMPLATE_SIZE)()
+        img_size = self.width * self.height
+
+        while time.time() < deadline:
+            tmpl_len = ctypes.c_uint(MAX_TEMPLATE_SIZE)
+            ret = self._lib.ZKFPM_AcquireFingerprint(
+                self.dev_handle,
+                self._img_buf,
+                img_size,
+                tmpl_buf,
+                ctypes.byref(tmpl_len),
+            )
+            if ret == ZKFP_ERR_CAPTURE:
+                empty += 1
+                if empty >= clear_reads:
+                    return
+            elif ret == ZKFP_ERR_OK:
+                empty = 0
+            elif ret not in (ZKFP_ERR_OK, ZKFP_ERR_CAPTURE):
+                # Device glitch — treat as lifted so caller can retry/reconnect
+                logger.warning(f"Finger-lift poll returned {ret}; continuing")
+                return
+            time.sleep(poll_interval)
+
+        logger.warning("Finger still on sensor after wait — continuing anyway")
 
     def merge_templates(self, t1: bytes, t2: bytes, t3: bytes) -> bytes:
         if not self.db_handle:

@@ -145,7 +145,7 @@ const AfterHours: React.FC = () => {
               description={
                 afterHoursToday
                   ? 'Everyone who needed a decision has been reviewed, or all workers have already checked out.'
-                  : 'This list fills after 6:00 PM.'
+                  : 'This list fills after 4:00 PM.'
               }
             />
           ) : (
@@ -301,10 +301,6 @@ const AfterHours: React.FC = () => {
         >
           <div className="after-hours__modal">
             <h3 id="delayed-title">Mark {delayedCase.fullName} as delayed leaving?</h3>
-            <p>
-              Pay will stop at 5:00 PM. They stayed past the 5–6 checkout window but were not
-              working overtime.
-            </p>
             <div className="after-hours__actions" style={{ marginTop: '1rem', justifyContent: 'flex-end' }}>
               <button
                 type="button"

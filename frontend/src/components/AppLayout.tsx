@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/workers', label: 'Workers', icon: Users },
   { to: '/attendance', label: 'Attendance', icon: Fingerprint },
-  { to: '/after-hours', label: 'After 6:00', icon: Timer },
+  { to: '/after-hours', label: 'After 4:00', icon: Timer },
   { to: '/reports', label: 'Reports', icon: FileBarChart },
   { to: '/register', label: 'Register', icon: UserPlus },
 ]
@@ -26,7 +26,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/workers': { title: 'Workers', subtitle: 'Manage workforce roster' },
   '/attendance': { title: 'Record Attendance', subtitle: 'Scan or search to clock events' },
   '/after-hours': {
-    title: 'After 6:00',
+    title: 'After 4:00',
     subtitle: 'Decide overtime vs delayed leaving',
   },
   '/reports': { title: 'Reports', subtitle: 'Daily, monthly, and payroll tables' },

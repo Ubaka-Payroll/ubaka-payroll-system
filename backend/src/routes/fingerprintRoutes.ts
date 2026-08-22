@@ -12,6 +12,8 @@ router.get('/test', fingerprintController.testScanner)
 
 // Capture for enrollment (register new fingerprint)
 router.post('/capture/enroll', fingerprintController.captureForEnrollment)
+router.post('/capture/sample', fingerprintController.captureSample)
+router.post('/enroll/merge', fingerprintController.mergeEnrollment)
 
 // Identify worker by fingerprint (1:N matching)
 router.post('/identify', fingerprintController.identifyWorker)

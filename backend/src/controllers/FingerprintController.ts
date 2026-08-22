@@ -90,6 +90,82 @@ export class FingerprintController {
     }
 
     /**
+     * Capture one fingerprint sample (step of enrollment)
+     * POST /api/fingerprint/capture/sample
+     */
+    public captureSample = async (_req: Request, res: Response): Promise<void> => {
+        try {
+            logger.info('Fingerprint sample capture requested')
+            const result = await this.fingerprintService.captureSample()
+
+            if (!result.success) {
+                res.status(400).json({
+                    success: false,
+                    error: result.error || 'Failed to capture fingerprint sample',
+                })
+                return
+            }
+
+            res.json({
+                success: true,
+                data: {
+                    template: this.fingerprintService.templateToString(result.template!),
+                    quality: result.quality,
+                },
+            })
+        } catch (error) {
+            logger.error('Fingerprint sample capture failed', error as Error)
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error during fingerprint sample capture',
+            })
+        }
+    }
+
+    /**
+     * Merge three enrollment samples
+     * POST /api/fingerprint/enroll/merge
+     */
+    public mergeEnrollment = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const templates = req.body?.templates
+            if (!Array.isArray(templates) || templates.length !== 3) {
+                res.status(400).json({
+                    success: false,
+                    error: 'Exactly three fingerprint samples are required',
+                })
+                return
+            }
+
+            logger.info('Fingerprint enrollment merge requested')
+            const result = await this.fingerprintService.mergeEnrollmentTemplates(templates)
+
+            if (!result.success) {
+                res.status(400).json({
+                    success: false,
+                    error: result.error || 'Failed to merge fingerprint samples',
+                })
+                return
+            }
+
+            res.json({
+                success: true,
+                data: {
+                    templateId: result.template!.id,
+                    template: this.fingerprintService.templateToString(result.template!),
+                    quality: result.quality,
+                },
+            })
+        } catch (error) {
+            logger.error('Fingerprint enrollment merge failed', error as Error)
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error during fingerprint merge',
+            })
+        }
+    }
+
+    /**
      * Capture and identify worker by fingerprint
      * POST /api/fingerprint/identify
      */

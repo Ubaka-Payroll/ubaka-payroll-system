@@ -116,7 +116,11 @@ export class FingerprintService {
     public async captureForEnrollment(): Promise<ScanResult> {
         try {
             logger.info('Requesting enrollment capture from fingerprint service')
-            const response = await axios.post(`${this.serviceUrl}/scanner/capture/enroll`, {}, { timeout: 30000 })
+            const response = await axios.post(`${this.serviceUrl}/scanner/capture/enroll`, {}, {
+                // Enrollment needs 3 finger placements; each scan can take up to ~30s.
+                timeout: 100_000,
+                validateStatus: () => true,
+            })
 
             if (response.data?.success) {
                 const template: FingerprintTemplate = {
@@ -141,6 +145,69 @@ export class FingerprintService {
             return {
                 success: false,
                 error: error.response?.data?.error || error.message || 'Capture failed'
+            }
+        }
+    }
+
+    public async captureSample(): Promise<ScanResult> {
+        try {
+            logger.info('Requesting single fingerprint sample')
+            const response = await axios.post(`${this.serviceUrl}/scanner/capture/sample`, {}, {
+                timeout: 45_000,
+                validateStatus: () => true,
+            })
+
+            if (response.data?.success) {
+                const template: FingerprintTemplate = {
+                    id: `SAMPLE${Date.now()}`,
+                    data: response.data.template,
+                    quality: response.data.quality || 85,
+                    capturedAt: new Date(),
+                }
+                return { success: true, template, quality: template.quality }
+            }
+
+            return {
+                success: false,
+                error: response.data?.error || 'Fingerprint sample failed',
+            }
+        } catch (error: any) {
+            logger.error('Sample capture HTTP request failed', error)
+            return {
+                success: false,
+                error: error.response?.data?.error || error.message || 'Sample capture failed',
+            }
+        }
+    }
+
+    public async mergeEnrollmentTemplates(templates: string[]): Promise<ScanResult> {
+        try {
+            logger.info('Merging enrollment fingerprint samples', { count: templates.length })
+            const response = await axios.post(
+                `${this.serviceUrl}/scanner/enroll/merge`,
+                { templates },
+                { timeout: 15_000, validateStatus: () => true }
+            )
+
+            if (response.data?.success) {
+                const template: FingerprintTemplate = {
+                    id: response.data.template_id || `FP${Date.now()}`,
+                    data: response.data.template,
+                    quality: response.data.quality || 90,
+                    capturedAt: new Date(),
+                }
+                return { success: true, template, quality: template.quality }
+            }
+
+            return {
+                success: false,
+                error: response.data?.error || 'Failed to merge fingerprint samples',
+            }
+        } catch (error: any) {
+            logger.error('Enrollment merge HTTP request failed', error)
+            return {
+                success: false,
+                error: error.response?.data?.error || error.message || 'Merge failed',
             }
         }
     }
