@@ -8,27 +8,34 @@ const router = Router()
 router.use(requireAuth, requireRole('SYSTEM_ADMIN'))
 
 router.get('/overview', async (_req, res) => {
-  const [pending, owners, activeSubs, engineers, keysAvailable, recent, subscriptions] = await Promise.all([
-    pool().query(`SELECT COUNT(*)::int AS n FROM owner_request WHERE status = 'PENDING'`),
-    pool().query(`SELECT COUNT(*)::int AS n FROM app_user WHERE role = 'SITE_OWNER'`),
-    pool().query(`SELECT COUNT(*)::int AS n FROM subscription WHERE status = 'ACTIVE'`),
-    pool().query(`SELECT COUNT(*)::int AS n FROM field_engineer`),
-    pool().query(`SELECT COUNT(*)::int AS n FROM activation_key WHERE status = 'AVAILABLE'`),
-    pool().query(`SELECT * FROM owner_request ORDER BY created_at DESC LIMIT 5`),
-    pool().query(
-      `SELECT s.*, u.full_name AS owner_name, u.email AS owner_email, u.company_name
-       FROM subscription s
-       JOIN app_user u ON u.id = s.owner_id
-       ORDER BY s.created_at DESC`,
-    ),
-  ])
+  const [pending, owners, activeSubs, engineers, activeEngineers, sites, keysAvailable, keysUsed, recent, subscriptions] =
+    await Promise.all([
+      pool().query(`SELECT COUNT(*)::int AS n FROM owner_request WHERE status = 'PENDING'`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM app_user WHERE role = 'SITE_OWNER'`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM subscription WHERE status = 'ACTIVE'`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM field_engineer`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM field_engineer WHERE status = 'ACTIVE'`),
+      pool().query(`SELECT COUNT(DISTINCT site_name)::int AS n FROM field_engineer`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM activation_key WHERE status = 'AVAILABLE'`),
+      pool().query(`SELECT COUNT(*)::int AS n FROM activation_key WHERE status IN ('ASSIGNED', 'USED')`),
+      pool().query(`SELECT * FROM owner_request ORDER BY created_at DESC LIMIT 5`),
+      pool().query(
+        `SELECT s.*, u.full_name AS owner_name, u.email AS owner_email, u.company_name
+         FROM subscription s
+         JOIN app_user u ON u.id = s.owner_id
+         ORDER BY s.created_at DESC`,
+      ),
+    ])
 
   return res.json({
     pendingRequests: pending.rows[0].n,
     owners: owners.rows[0].n,
     activeSubs: activeSubs.rows[0].n,
     engineers: engineers.rows[0].n,
+    activeEngineers: activeEngineers.rows[0].n,
+    sites: sites.rows[0].n,
     keysAvailable: keysAvailable.rows[0].n,
+    keysUsed: keysUsed.rows[0].n,
     recentRequests: recent.rows.map(mapRequest),
     subscriptions: subscriptions.rows.map(mapSubscription),
   })
