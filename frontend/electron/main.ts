@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import * as fs from 'fs'
 import * as path from 'path'
 import { ServiceSupervisor, type ServiceStatus } from './services'
 
@@ -10,6 +11,17 @@ let lastStatus: ServiceStatus = { phase: 'starting', ready: false }
 const isDev =
   process.env.NODE_ENV === 'development' ||
   process.env.UBAKA_ELECTRON_DEV === '1'
+
+/** Thin client against a hosted API — no bundled Postgres/backend. */
+function useRemoteApi(): boolean {
+  if (process.env.UBAKA_REMOTE_API === '1') return true
+  if (isDev && process.env.UBAKA_SKIP_SERVICES === '1') return true
+  if (app.isPackaged) {
+    const serverJs = path.join(process.resourcesPath, 'backend', 'dist', 'server.js')
+    return !fs.existsSync(serverJs)
+  }
+  return false
+}
 
 function createSplash(): BrowserWindow {
   const win = new BrowserWindow({
@@ -102,24 +114,32 @@ async function boot(): Promise<void> {
   supervisor = new ServiceSupervisor()
   supervisor.onStatus(broadcastStatus)
 
-  // Dev UI: skip bundled Postgres/API (use npm run dev:api), but always
-  // start the fingerprint sidecar so the scanner is ready in Electron.
-  if (isDev && process.env.UBAKA_SKIP_SERVICES === '1') {
+  // Remote / thin client: skip bundled Postgres + API (desktop talks to hosted API).
+  // Dev with UBAKA_SKIP_SERVICES=1 uses the same path and may start a local fingerprint sidecar.
+  if (useRemoteApi()) {
     try {
-      const fp = await supervisor.startFingerprint()
-      broadcastStatus({
-        phase: 'ready',
-        detail: fp.fingerprintMock
-          ? 'Dev UI ready (fingerprint mock).'
-          : 'Dev UI ready. Fingerprint service started.',
-        ready: true,
-        fingerprintMock: fp.fingerprintMock,
-      })
+      if (isDev) {
+        const fp = await supervisor.startFingerprint()
+        broadcastStatus({
+          phase: 'ready',
+          detail: fp.fingerprintMock
+            ? 'Ready (remote API, fingerprint mock).'
+            : 'Ready (remote API). Fingerprint service started.',
+          ready: true,
+          fingerprintMock: fp.fingerprintMock,
+        })
+      } else {
+        broadcastStatus({
+          phase: 'ready',
+          detail: 'Ready (using remote API).',
+          ready: true,
+        })
+      }
     } catch (err) {
       const message = (err as Error).message || String(err)
       broadcastStatus({
         phase: 'ready',
-        detail: `Dev UI ready. Fingerprint service failed to start: ${message}`,
+        detail: `Ready (remote API). Fingerprint service failed: ${message}`,
         ready: true,
         error: message,
       })

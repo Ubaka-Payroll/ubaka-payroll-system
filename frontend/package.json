@@ -13,6 +13,7 @@
     "build:renderer": "vite build",
     "build": "npm run build:electron-main && npm run build:renderer",
     "dist:win": "npm run build && electron-builder --win --x64 --config electron-builder.yml",
+    "dist:win:remote": "npm run build && electron-builder --win --x64 --config electron-builder.remote.yml",
     "electron:packaged-dev": "npm run build && cross-env NODE_ENV=production ELECTRON_OZONE_PLATFORM_HINT=x11 electron --no-sandbox --ozone-platform=x11 .",
     "start": "electron --no-sandbox --ozone-platform=x11 .",
     "lint": "eslint . --ext .ts,.tsx",

@@ -14,4 +14,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   -f "$SQL_DIR/migrate_v2_attendance.sql"
 
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+  -f "$SQL_DIR/migrations/005_sysadmin.sql"
+
 echo "Ubaka database initialization complete."

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
+import { logger } from '../utils/Logger'
 
 export type Role = 'SYSTEM_ADMIN' | 'SITE_OWNER' | 'FIELD_ENGINEER'
 
@@ -46,4 +47,36 @@ export function requireRole(...roles: Role[]) {
     }
     next()
   }
+}
+
+let warnedEmptyAllowlist = false
+
+/**
+ * ADMIN_ALLOWED_EMAILS is the source of truth for System Admin sysadmin-dashboard
+ * access. An unset/empty value fails closed (no one is allowed) rather than
+ * silently granting access to every SYSTEM_ADMIN account.
+ */
+export function isAllowedAdminEmail(email: string | undefined | null): boolean {
+  const raw = process.env.ADMIN_ALLOWED_EMAILS || ''
+  const allowed = raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (allowed.length === 0) {
+    if (!warnedEmptyAllowlist) {
+      warnedEmptyAllowlist = true
+      logger.warn('ADMIN_ALLOWED_EMAILS is not set — all System Admin dashboard access is denied')
+    }
+    return false
+  }
+
+  return !!email && allowed.includes(email.trim().toLowerCase())
+}
+
+export function requireAdminAllowlist(req: Request, res: Response, next: NextFunction) {
+  if (!req.user || !isAllowedAdminEmail(req.user.email)) {
+    return res.status(403).json({ error: 'Not on the sysadmin allowlist' })
+  }
+  next()
 }

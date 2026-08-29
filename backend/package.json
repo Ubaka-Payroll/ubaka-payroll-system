@@ -14,6 +14,7 @@
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create",
     "migrate:portal": "psql -d ubaka_attendance -f database/migrations/002_portal.sql",
+    "migrate:sysadmin": "psql -d ubaka_attendance -f database/migrations/005_sysadmin.sql",
     "seed:portal": "tsx src/seedPortal.ts"
   },
   "keywords": [
@@ -27,8 +28,10 @@
     "axios": "^1.18.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
+    "dockerode": "^4.0.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
@@ -38,6 +41,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
+    "@types/dockerode": "^3.3.31",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",

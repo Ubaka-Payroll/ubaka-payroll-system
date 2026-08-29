@@ -10,9 +10,12 @@ import reportRoutes from './routes/reportRoutes'
 import authRoutes from './routes/authRoutes'
 import adminRoutes from './routes/adminRoutes'
 import ownerRoutes from './routes/ownerRoutes'
+import sysadminRoutes from './routes/sysadminRoutes'
 import { requestLogger } from './middleware/requestLogger'
+import { requestMetricsMiddleware } from './middleware/requestMetrics'
 import { errorHandler } from './middleware/errorHandler'
 import { logger } from './utils/Logger'
+import { startSystemMetricsCron } from './jobs/systemMetricsCron'
 import swaggerUi from 'swagger-ui-express'
 import { openapiSpec } from './openapi'
 
@@ -29,6 +32,7 @@ app.use(express.urlencoded({ extended: true }))
 
 // Request logging
 app.use(requestLogger)
+app.use(requestMetricsMiddleware)
 
 // Health check endpoint
 app.get('/health', async (req: Request, res: Response) => {
@@ -64,6 +68,7 @@ app.get('/api', (req: Request, res: Response) => {
       auth: '/api/auth',
       admin: '/api/admin',
       owner: '/api/owner',
+      sysadmin: '/api/sysadmin',
     },
   })
 })
@@ -77,6 +82,7 @@ app.use('/api/reports', reportRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/owner', ownerRoutes)
+app.use('/api/sysadmin', sysadminRoutes)
 
 app.get('/api/openapi.json', (_req: Request, res: Response) => {
   res.json(openapiSpec)
@@ -126,6 +132,8 @@ async function startServer() {
       console.log(`✅ Database: Connected`)
       console.log(`📝 Logs: backend/logs/`)
     })
+
+    startSystemMetricsCron()
   } catch (error) {
     logger.error('Failed to start server', error as Error)
     process.exit(1)

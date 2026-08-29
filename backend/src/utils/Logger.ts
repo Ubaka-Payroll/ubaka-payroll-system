@@ -16,10 +16,20 @@ interface LogEntry {
     error?: Error
 }
 
+export interface RecentLogEntry {
+    timestamp: string
+    level: LogLevel
+    message: string
+    context?: Record<string, any>
+}
+
+const RECENT_ENTRIES_LIMIT = 200
+
 class Logger {
     private logDir: string
     private appLogFile: string
     private errorLogFile: string
+    private recentEntries: RecentLogEntry[] = []
 
     constructor() {
         this.logDir = path.join(__dirname, '../../logs')
@@ -82,8 +92,23 @@ class Logger {
             this.writeLog(this.errorLogFile, formattedLog)
         }
 
+        // In-memory ring buffer for the sysadmin dashboard's recent-events feed
+        this.recentEntries.push({ timestamp: entry.timestamp, level, message, context })
+        if (this.recentEntries.length > RECENT_ENTRIES_LIMIT) {
+            this.recentEntries.splice(0, this.recentEntries.length - RECENT_ENTRIES_LIMIT)
+        }
+
         // Rotate logs if they get too large (> 10MB)
         this.rotateLogsIfNeeded()
+    }
+
+    public getRecent(opts?: { level?: LogLevel; limit?: number }): RecentLogEntry[] {
+        let entries = this.recentEntries
+        if (opts?.level) {
+            entries = entries.filter((e) => e.level === opts.level)
+        }
+        const limit = opts?.limit ?? RECENT_ENTRIES_LIMIT
+        return entries.slice(-limit).reverse()
     }
 
     private rotateLogsIfNeeded(): void {

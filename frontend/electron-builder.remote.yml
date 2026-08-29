@@ -1,0 +1,30 @@
+# Thin Windows client — UI only; talks to the hosted API (api.ubaka.site).
+# Does not bundle Postgres, Node, or the Express backend.
+appId: com.ubaka.attendance
+productName: Ubaka Attendance
+copyright: Copyright © Ubaka
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  artifactName: UbakaAttendance-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ubaka Attendance
+  runAfterFinish: true
+portable:
+  artifactName: UbakaAttendance-${version}-portable.${ext}
+asar: true

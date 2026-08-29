@@ -13,6 +13,7 @@ export const openapiSpec = {
     { name: 'Auth', description: 'Authentication and access requests' },
     { name: 'Admin', description: 'System Admin operations (role: SYSTEM_ADMIN)' },
     { name: 'Owner', description: 'Site Owner operations (role: SITE_OWNER)' },
+    { name: 'Sysadmin', description: 'System monitoring & management (role: SYSTEM_ADMIN, allowlisted emails only)' },
     { name: 'System', description: 'Health and diagnostics' },
   ],
   components: {
@@ -42,6 +43,10 @@ export const openapiSpec = {
           fullName: { type: 'string' },
           companyName: { type: 'string', nullable: true },
           phone: { type: 'string', nullable: true },
+          sysadminAllowlisted: {
+            type: 'boolean',
+            description: 'Present only for role SYSTEM_ADMIN — whether this email is on ADMIN_ALLOWED_EMAILS and can use the sysadmin monitoring dashboard.',
+          },
         },
       },
       LoginRequest: {
@@ -219,6 +224,72 @@ export const openapiSpec = {
           },
         ],
       },
+      AdminSignupRequest: {
+        type: 'object',
+        required: ['fullName', 'email', 'password'],
+        properties: {
+          fullName: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', format: 'password', minLength: 10 },
+        },
+      },
+      HostMetrics: {
+        type: 'object',
+        properties: {
+          cpuPercent: { type: 'number' },
+          perCore: { type: 'array', items: { type: 'number' } },
+          memPercent: { type: 'number' },
+          memUsedBytes: { type: 'integer' },
+          memTotalBytes: { type: 'integer' },
+          diskPercent: { type: 'number' },
+          diskUsedBytes: { type: 'integer' },
+          diskTotalBytes: { type: 'integer' },
+          netRxBytesPerSec: { type: 'integer' },
+          netTxBytesPerSec: { type: 'integer' },
+          loadavg: { type: 'array', items: { type: 'number' } },
+          uptimeSec: { type: 'integer' },
+          source: { type: 'string', enum: ['host', 'container'] },
+        },
+      },
+      ContainerInfo: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          image: { type: 'string' },
+          state: { type: 'string' },
+          status: { type: 'string' },
+          startedAt: { type: 'string', format: 'date-time', nullable: true },
+          restartCount: { type: 'integer' },
+          cpuPercent: { type: 'number', nullable: true },
+          memUsageBytes: { type: 'integer', nullable: true },
+          memLimitBytes: { type: 'integer', nullable: true },
+          memPercent: { type: 'number', nullable: true },
+        },
+      },
+      SystemMetricsSnapshot: {
+        type: 'object',
+        properties: {
+          t: { type: 'string', format: 'date-time' },
+          cpuPercent: { type: 'number', nullable: true },
+          memPercent: { type: 'number', nullable: true },
+          diskPercent: { type: 'number', nullable: true },
+          netRxBytes: { type: 'integer', nullable: true },
+          netTxBytes: { type: 'integer', nullable: true },
+          requestCount: { type: 'integer', nullable: true },
+          errorCount: { type: 'integer', nullable: true },
+          avgLatencyMs: { type: 'number', nullable: true },
+        },
+      },
+      LogEvent: {
+        type: 'object',
+        properties: {
+          timestamp: { type: 'string', format: 'date-time' },
+          level: { type: 'string', enum: ['INFO', 'WARN', 'ERROR', 'DEBUG'] },
+          message: { type: 'string' },
+          context: { type: 'object', nullable: true },
+        },
+      },
     },
     responses: {
       Unauthorized: {
@@ -276,6 +347,27 @@ export const openapiSpec = {
           },
           400: { $ref: '#/components/responses/NotFound' },
           401: { $ref: '#/components/responses/Unauthorized' },
+        },
+      },
+    },
+    '/auth/admin-signup': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Create a System Admin account (email must be in ADMIN_ALLOWED_EMAILS)',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AdminSignupRequest' } } },
+        },
+        responses: {
+          201: {
+            description: 'Account created',
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } },
+            },
+          },
+          400: { description: 'Missing fields or password too short' },
+          403: { description: 'Email is not on the sysadmin allowlist' },
+          409: { description: 'Account with this email already exists' },
         },
       },
     },
@@ -586,6 +678,149 @@ export const openapiSpec = {
           },
           403: { $ref: '#/components/responses/Forbidden' },
           404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+    '/sysadmin/overview': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Headline dashboard tiles: host, requests, db, docker, redis',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Overview summary' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/host': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Live host CPU/memory/disk/network metrics',
+        security: bearerAuth,
+        responses: {
+          200: {
+            description: 'Host metrics',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/HostMetrics' } } },
+          },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/requests': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Live request-rate, latency, and status-code rollup',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Request metrics snapshot' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/containers': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Docker container table (via the read-only docker-proxy)',
+        security: bearerAuth,
+        responses: {
+          200: {
+            description: 'Containers',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    available: { type: 'boolean' },
+                    containers: { type: 'array', items: { $ref: '#/components/schemas/ContainerInfo' } },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/database': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Database pool, size, and activity metrics',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Database metrics' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/redis': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Redis/cache status (reports not_configured if REDIS_URL is unset)',
+        security: bearerAuth,
+        responses: {
+          200: { description: 'Redis status' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/events': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Recent log events (in-memory ring buffer)',
+        security: bearerAuth,
+        parameters: [
+          { name: 'level', in: 'query', schema: { type: 'string', enum: ['INFO', 'WARN', 'ERROR', 'DEBUG'] } },
+          { name: 'limit', in: 'query', schema: { type: 'integer' } },
+        ],
+        responses: {
+          200: {
+            description: 'Recent events',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { events: { type: 'array', items: { $ref: '#/components/schemas/LogEvent' } } },
+                },
+              },
+            },
+          },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/sysadmin/history': {
+      get: {
+        tags: ['Sysadmin'],
+        summary: 'Historical metric snapshots for charts',
+        security: bearerAuth,
+        parameters: [
+          { name: 'range', in: 'query', schema: { type: 'string', enum: ['1h', '24h', '7d'], default: '1h' } },
+        ],
+        responses: {
+          200: {
+            description: 'Metric history',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    range: { type: 'string' },
+                    points: { type: 'array', items: { $ref: '#/components/schemas/SystemMetricsSnapshot' } },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: 'Invalid range' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
         },
       },
     },
