@@ -1,0 +1,10 @@
+node_modules
+dist
+logs
+.env
+.env.*
+!.env.docker.example
+.git
+*.md
+.prettierrc.json
+.eslintrc.json

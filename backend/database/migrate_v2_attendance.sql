@@ -45,7 +45,30 @@ CREATE TABLE IF NOT EXISTS overtime_authorization (
     UNIQUE(worker_id, work_date)
 );
 
--- 3. Worker Breaks
+-- 3. Break Types (required by worker_break)
+CREATE TABLE IF NOT EXISTS break_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    is_paid BOOLEAN DEFAULT FALSE,
+    min_duration_minutes INT DEFAULT 0,
+    max_duration_minutes INT,
+    requires_approval BOOLEAN DEFAULT FALSE,
+    auto_approve_within_limit BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO break_types (name, description, is_paid, min_duration_minutes, max_duration_minutes, requires_approval) VALUES
+('Lunch Break', 'Standard lunch break', FALSE, 30, 60, FALSE),
+('Tea Break', 'Short tea/coffee break', TRUE, 10, 15, FALSE),
+('Emergency', 'Emergency leave from site', FALSE, NULL, NULL, TRUE),
+('Prayer Break', 'Prayer/religious observance', TRUE, 10, 20, FALSE),
+('Unauthorized', 'Unrecorded/unauthorized absence', FALSE, NULL, NULL, TRUE)
+ON CONFLICT (name) DO NOTHING;
+
+-- 4. Worker Breaks
 CREATE TABLE IF NOT EXISTS worker_break (
     id SERIAL PRIMARY KEY,
     worker_id INT NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
@@ -61,7 +84,7 @@ CREATE TABLE IF NOT EXISTS worker_break (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Daily Work Summary (Main Payroll Table)
+-- 5. Daily Work Summary (Main Payroll Table)
 CREATE TABLE IF NOT EXISTS daily_work_summary (
     id SERIAL PRIMARY KEY,
     worker_id INT NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
@@ -124,7 +147,7 @@ CREATE TABLE IF NOT EXISTS daily_work_summary (
     UNIQUE(worker_id, work_date)
 );
 
--- 5. Late Arrivals Tracking
+-- 6. Late Arrivals Tracking
 CREATE TABLE IF NOT EXISTS late_arrival (
     id SERIAL PRIMARY KEY,
     worker_id INT NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
@@ -145,7 +168,7 @@ CREATE TABLE IF NOT EXISTS late_arrival (
     UNIQUE(worker_id, work_date)
 );
 
--- 6. Attendance Adjustments
+-- 7. Attendance Adjustments
 CREATE TABLE IF NOT EXISTS attendance_adjustment (
     id SERIAL PRIMARY KEY,
     worker_id INT NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
