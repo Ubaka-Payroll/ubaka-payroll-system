@@ -166,7 +166,7 @@ const OwnerDashboard: React.FC = () => {
           <AttendanceTable
             rows={today?.rows || []}
             emptyTitle="No attendance yet today"
-            emptyDescription="Clock workers in on the Field Engineer desktop app. This table matches the desktop dashboard."
+            emptyDescription="Worker attendance records from desktop application."
           />
         </div>
       </div>

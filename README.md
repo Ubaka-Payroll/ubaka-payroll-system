@@ -1,6 +1,6 @@
 # Ubaka
 
-Shared platform for construction site attendance: one PostgreSQL API, a Field Engineer desktop app, and a System Admin / Site Owner management portal.
+Shared platform for construction site attendance management: PostgreSQL database, desktop application, and web management portal.
 
 ## Project Structure
 

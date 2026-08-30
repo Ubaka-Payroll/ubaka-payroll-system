@@ -60,7 +60,7 @@ export const OwnerShell: React.FC = () => (
       { to: '/owner/reports', label: 'Daily reports', icon: FileText },
     ]}
     titles={{
-      '/owner': { title: 'Site overview', subtitle: 'Live attendance from the Field Engineer desktop app' },
+      '/owner': { title: 'Site overview', subtitle: 'Live attendance data' },
       '/owner/workers': {
         title: 'Site workers',
         subtitle: 'The same roster the Field Engineer manages on desktop',

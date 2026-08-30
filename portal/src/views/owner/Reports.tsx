@@ -45,7 +45,7 @@ const Reports: React.FC = () => {
             <EmptyState
               icon={<FileText size={24} />}
               title="No reports yet"
-              description="Clock workers in on the Field Engineer desktop app. Daily attendance from that site appears here."
+              description="Daily attendance records from the desktop application."
             />
           ) : (
             <div className="table-wrap">

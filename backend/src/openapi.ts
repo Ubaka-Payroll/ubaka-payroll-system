@@ -637,7 +637,7 @@ export const openapiSpec = {
     '/owner/workers': {
       get: {
         tags: ['Owner'],
-        summary: 'Active workers from the Field Engineer desktop roster',
+        summary: 'Active workers roster',
         security: bearerAuth,
         responses: {
           200: { description: 'Worker roster' },

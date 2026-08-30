@@ -59,7 +59,7 @@ const Workers: React.FC = () => {
             <EmptyState
               icon={<HardHat size={24} />}
               title="No workers on this site yet"
-              description="Register workers in the Field Engineer desktop app. They appear here automatically."
+              description="Workers registered via the desktop application."
             />
           ) : (
             <div className="table-wrap">
