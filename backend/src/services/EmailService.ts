@@ -105,7 +105,7 @@ export class EmailService {
     const html = wrapTemplate(
       subject,
       `
-      <h2 style="margin-top:0; color:#1c1d24;">Welcome to Ubaka! 🎉</h2>
+      <h2 style="margin-top:0; color:#1c1d24;">Welcome to Ubaka!</h2>
       <p>Hello <strong>${ownerName}</strong>,</p>
       <p>Your registration request for <strong>${companyName}</strong> has been <strong>APPROVED</strong>!</p>
       

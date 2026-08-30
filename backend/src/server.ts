@@ -153,10 +153,10 @@ async function startServer() {
         environment: process.env.NODE_ENV,
         database: 'connected',
       })
-      console.log(`🚀 Server running on http://localhost:${PORT}`)
-      console.log(`📊 Environment: ${process.env.NODE_ENV}`)
-      console.log(`✅ Database: Connected`)
-      console.log(`📝 Logs: backend/logs/`)
+      console.log(`Server running on http://localhost:${PORT}`)
+      console.log(`Environment: ${process.env.NODE_ENV}`)
+      console.log(`Database: Connected`)
+      console.log(`Logs: backend/logs/`)
     })
 
     startSystemMetricsCron()
