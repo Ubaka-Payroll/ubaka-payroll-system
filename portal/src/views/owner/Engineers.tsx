@@ -68,9 +68,6 @@ const Engineers: React.FC = () => {
       {error && <Alert variant="error" message={error} actionLabel="Retry" onAction={load} />}
 
       <div className="toolbar">
-        <p className="muted">
-          Create Field Engineers and share their activation key for the Ubaka desktop app.
-        </p>
         <button type="button" className="btn btn-primary" onClick={() => setShowForm(true)}>
           Add engineer
         </button>
@@ -186,7 +183,7 @@ const Engineers: React.FC = () => {
                   id="siteName"
                   type="text"
                   required
-                  placeholder="e.g. Kigali Heights Site A"
+                  placeholder="e.g. Main Construction Site"
                   value={form.siteName}
                   onChange={(e) => setForm((p) => ({ ...p, siteName: e.target.value }))}
                 />

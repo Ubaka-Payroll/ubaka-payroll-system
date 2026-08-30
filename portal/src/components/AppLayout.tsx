@@ -13,14 +13,14 @@ type NavItem = {
 
 type AppLayoutProps = {
   navItems: NavItem[]
-  titles: Record<string, { title: string; subtitle: string }>
+  titles: Record<string, { title: string; subtitle?: string }>
   homePath: string
 }
 
 function resolveMeta(
   pathname: string,
-  titles: Record<string, { title: string; subtitle: string }>,
-  fallback: { title: string; subtitle: string },
+  titles: Record<string, { title: string; subtitle?: string }>,
+  fallback: { title: string; subtitle?: string },
 ) {
   if (titles[pathname]) return titles[pathname]
   const match = Object.keys(titles)
@@ -112,7 +112,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ navItems, titles, homePath }) => 
           </button>
           <div className="topbar__titles">
             <h1 className="topbar__title">{meta.title}</h1>
-            <p className="topbar__subtitle">{meta.subtitle}</p>
+            {meta.subtitle ? <p className="topbar__subtitle">{meta.subtitle}</p> : null}
           </div>
           <div className="topbar__actions">
             <button type="button" className="btn btn-ghost" onClick={() => navigate(homePath)}>

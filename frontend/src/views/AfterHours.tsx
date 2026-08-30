@@ -145,7 +145,7 @@ const AfterHours: React.FC = () => {
               description={
                 afterHoursToday
                   ? 'Everyone who needed a decision has been reviewed, or all workers have already checked out.'
-                  : 'This list fills after 4:00 PM.'
+                  : 'This list fills after 6:00 PM.'
               }
             />
           ) : (

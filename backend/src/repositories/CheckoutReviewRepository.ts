@@ -91,8 +91,11 @@ export class CheckoutReviewRepository extends BaseRepository<CheckoutReview> {
     return result.rows[0]
   }
 
-  async listOpenCases(days = 30): Promise<Array<Record<string, unknown>>> {
+  async listOpenCases(days = 30, ownerId?: string): Promise<Array<Record<string, unknown>>> {
     await this.ensureTable()
+    if (!ownerId) {
+      return []
+    }
     const result = await this.pool.query(
       `
       WITH flags AS (
@@ -103,6 +106,7 @@ export class CheckoutReviewRepository extends BaseRepository<CheckoutReview> {
           MAX(CASE WHEN ae.event_type = 'EXIT' THEN ae.timestamp END) AS exit_time
         FROM attendance_event ae
         WHERE ae.timestamp >= CURRENT_DATE - ($1::int || ' days')::interval
+          AND (ae.owner_id = $2 OR ae.worker_id IN (SELECT id FROM worker WHERE owner_id = $2))
         GROUP BY DATE(ae.timestamp), ae.worker_id
       )
       SELECT
@@ -125,10 +129,10 @@ export class CheckoutReviewRepository extends BaseRepository<CheckoutReview> {
       JOIN worker w ON w.id = f.worker_id
       LEFT JOIN daily_wage dw ON dw.worker_id = f.worker_id AND dw.work_date = f.work_date
       LEFT JOIN checkout_review cr ON cr.worker_id = f.worker_id AND cr.work_date = f.work_date
-      WHERE f.entry_time IS NOT NULL
+      WHERE f.entry_time IS NOT NULL AND w.owner_id = $2
       ORDER BY f.work_date DESC, w.full_name
       `,
-      [days],
+      [days, ownerId],
     )
     return result.rows
   }

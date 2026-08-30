@@ -1,11 +1,11 @@
 /** Paid workday is 07:00–17:00. Time outside that window does not count toward wages. */
-/** TEMP: checkout review opens at 16:00 for testing (normally 18:00). */
+/** Checkout review opens at 18:00 (after the 17:00-18:00 leaving window). */
 
 export const WORK_START_HOUR = 7
 export const WORK_START_MINUTE = 0
 export const WORK_END_HOUR = 17
 export const WORK_END_MINUTE = 0
-export const CHECKOUT_REVIEW_HOUR = 16
+export const CHECKOUT_REVIEW_HOUR = 18
 export const CHECKOUT_REVIEW_MINUTE = 0
 
 export function workStartOn(date: Date): Date {
@@ -20,7 +20,7 @@ export function workEndOn(date: Date): Date {
   return end
 }
 
-/** TEMP 16:00 — normally 18:00 after the 5–6 leaving window. */
+/** 18:00 — opens after the 17:00-18:00 leaving window. */
 export function checkoutReviewOn(date: Date): Date {
   const review = new Date(date)
   review.setHours(CHECKOUT_REVIEW_HOUR, CHECKOUT_REVIEW_MINUTE, 0, 0)

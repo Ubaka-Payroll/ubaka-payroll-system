@@ -175,4 +175,5 @@ export async function fetchReport(id: string) {
   return data
 }
 
+export { api }
 export default api

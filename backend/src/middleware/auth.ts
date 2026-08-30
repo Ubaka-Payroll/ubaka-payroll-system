@@ -9,6 +9,9 @@ export interface AuthUser {
   email: string
   role: Role
   fullName: string
+  ownerId?: string
+  engineerId?: string
+  siteName?: string
 }
 
 declare global {

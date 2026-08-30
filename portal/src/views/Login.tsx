@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import Logo from '../components/Logo'
 import { Alert } from '../components/ui'
@@ -43,10 +43,6 @@ const Login: React.FC = () => {
         </div>
 
         <h1 className="auth-title">Sign in</h1>
-        <p className="auth-subtitle">
-          System Admins and Site Owners manage subscriptions and reports here.
-        </p>
-
         {error && <Alert variant="error" message={error} onDismiss={() => setError(null)} />}
 
         <form className="auth-form" onSubmit={onSubmit}>
@@ -86,6 +82,10 @@ const Login: React.FC = () => {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          Need an account? <Link to="/register" style={{ color: 'var(--teal)', fontWeight: 600 }}>Register</Link>
+        </div>
       </div>
     </div>
   )

@@ -11,6 +11,7 @@ import authRoutes from './routes/authRoutes'
 import adminRoutes from './routes/adminRoutes'
 import ownerRoutes from './routes/ownerRoutes'
 import sysadminRoutes from './routes/sysadminRoutes'
+import ownerRegistrationRoutes from './routes/ownerRegistrationRoutes'
 import { requestLogger } from './middleware/requestLogger'
 import { requestMetricsMiddleware } from './middleware/requestMetrics'
 import { errorHandler } from './middleware/errorHandler'
@@ -83,6 +84,31 @@ app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/owner', ownerRoutes)
 app.use('/api/sysadmin', sysadminRoutes)
+app.use('/api/owner-registration', ownerRegistrationRoutes)
+
+// Debug endpoint to list all routes
+app.get('/api/debug/routes', (req: Request, res: Response) => {
+  const routes: any[] = []
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      })
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) {
+          const path = middleware.regexp.source.replace('\\/?', '').replace('(?=\\/|$)', '')
+          routes.push({
+            path: path + handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          })
+        }
+      })
+    }
+  })
+  res.json({ routes })
+})
 
 app.get('/api/openapi.json', (_req: Request, res: Response) => {
   res.json(openapiSpec)

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, LoadingState, EmptyState, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
+import { ConfirmModal, PromptModal } from '../../components/ConfirmModal'
 import {
   fetchOwnerRequests,
   approveRequest,
@@ -33,6 +34,11 @@ const OwnerRequests: React.FC = () => {
     password: string
     keys: string[]
   } | null>(null)
+
+  // Confirm / prompt modal state
+  const [deleteTarget, setDeleteTarget] = useState<OwnerRequest | null>(null)
+  const [deactivateTarget, setDeactivateTarget] = useState<OwnerRequest | null>(null)
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null)
 
   useEffect(() => {
     void load()
@@ -70,11 +76,13 @@ const OwnerRequests: React.FC = () => {
     }
   }
 
-  const onReject = async (id: string) => {
-    const reason = window.prompt('Rejection reason (optional):') ?? undefined
+  const onRejectConfirmed = async (reason: string) => {
+    if (!rejectTarget) return
+    const id = rejectTarget
+    setRejectTarget(null)
     setBusyId(id)
     try {
-      await rejectRequest(id, reason)
+      await rejectRequest(id, reason || undefined)
       push('Request rejected')
       await load()
     } catch (err: unknown) {
@@ -123,8 +131,10 @@ const OwnerRequests: React.FC = () => {
     }
   }
 
-  const onDelete = async (request: OwnerRequest) => {
-    if (!window.confirm(`Delete request for ${request.fullName}? This cannot be undone.`)) return
+  const onDeleteConfirmed = async () => {
+    if (!deleteTarget) return
+    const request = deleteTarget
+    setDeleteTarget(null)
     setBusyId(request.id)
     try {
       await deleteOwnerRequest(request.id)
@@ -140,14 +150,10 @@ const OwnerRequests: React.FC = () => {
     }
   }
 
-  const onDeactivate = async (request: OwnerRequest) => {
-    if (
-      !window.confirm(
-        `Deactivate request for ${request.fullName}? Approved owners will have their subscription suspended.`,
-      )
-    ) {
-      return
-    }
+  const onDeactivateConfirmed = async () => {
+    if (!deactivateTarget) return
+    const request = deactivateTarget
+    setDeactivateTarget(null)
     setBusyId(request.id)
     try {
       await deactivateOwnerRequest(request.id)
@@ -227,7 +233,7 @@ const OwnerRequests: React.FC = () => {
                                 disabled={busyId === r.id}
                                 title="Reject"
                                 aria-label="Reject"
-                                onClick={() => void onReject(r.id)}
+                                onClick={() => setRejectTarget(r.id)}
                               >
                                 <X size={16} />
                               </button>
@@ -250,7 +256,7 @@ const OwnerRequests: React.FC = () => {
                               disabled={busyId === r.id}
                               title="Deactivate"
                               aria-label="Deactivate"
-                              onClick={() => void onDeactivate(r)}
+                              onClick={() => setDeactivateTarget(r)}
                             >
                               <Ban size={16} />
                             </button>
@@ -261,7 +267,7 @@ const OwnerRequests: React.FC = () => {
                             disabled={busyId === r.id}
                             title="Delete"
                             aria-label="Delete"
-                            onClick={() => void onDelete(r)}
+                            onClick={() => setDeleteTarget(r)}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -276,6 +282,45 @@ const OwnerRequests: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Delete confirm modal ── */}
+      <ConfirmModal
+        open={!!deleteTarget}
+        variant="danger"
+        title="Delete request"
+        message={deleteTarget ? `Permanently delete the request for ${deleteTarget.fullName}? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        busy={!!busyId}
+        onConfirm={onDeleteConfirmed}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* ── Deactivate confirm modal ── */}
+      <ConfirmModal
+        open={!!deactivateTarget}
+        variant="warning"
+        title="Deactivate request"
+        message={deactivateTarget ? `Deactivate the request for ${deactivateTarget.fullName}? Approved owners will have their subscription suspended.` : ''}
+        confirmLabel="Deactivate"
+        busy={!!busyId}
+        onConfirm={onDeactivateConfirmed}
+        onCancel={() => setDeactivateTarget(null)}
+      />
+
+      {/* ── Reject prompt modal ── */}
+      <PromptModal
+        open={!!rejectTarget}
+        variant="warning"
+        title="Reject request"
+        message="Please provide a reason for rejecting this request. The applicant may be notified."
+        placeholder="e.g. Incomplete information, duplicate application…"
+        confirmLabel="Reject"
+        required={false}
+        busy={!!busyId}
+        onConfirm={onRejectConfirmed}
+        onCancel={() => setRejectTarget(null)}
+      />
+
+      {/* ── Edit modal ── */}
       {editing && (
         <div className="modal-backdrop" role="presentation" onClick={() => setEditing(null)}>
           <div
@@ -349,6 +394,7 @@ const OwnerRequests: React.FC = () => {
         </div>
       )}
 
+      {/* ── Result (approval) modal ── */}
       {resultModal && (
         <div className="modal-backdrop" role="presentation" onClick={() => setResultModal(null)}>
           <div

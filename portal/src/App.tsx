@@ -4,8 +4,9 @@ import { AuthProvider } from './hooks/useAuth'
 import { AdminShell, OwnerShell, RequireAuth, HomeRedirect } from './components/RoleGates'
 import Login from './views/Login'
 import RequestAccess from './views/RequestAccess'
+import OwnerRegister from './views/OwnerRegister'
 import AdminDashboard from './views/admin/AdminDashboard'
-import OwnerRequests from './views/admin/OwnerRequests'
+import RegistrationRequests from './views/admin/RegistrationRequests'
 import Subscriptions from './views/admin/Subscriptions'
 import OwnerDashboard from './views/owner/OwnerDashboard'
 import Workers from './views/owner/Workers'
@@ -21,13 +22,14 @@ function App() {
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<OwnerRegister />} />
             <Route path="/request-access" element={<RequestAccess />} />
             <Route path="/" element={<HomeRedirect />} />
 
             <Route element={<RequireAuth roles={['SYSTEM_ADMIN']} />}>
               <Route element={<AdminShell />}>
                 <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/requests" element={<OwnerRequests />} />
+                <Route path="/admin/requests" element={<RegistrationRequests />} />
                 <Route path="/admin/subscriptions" element={<Subscriptions />} />
               </Route>
             </Route>

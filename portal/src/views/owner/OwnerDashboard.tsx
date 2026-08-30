@@ -182,7 +182,6 @@ const OwnerDashboard: React.FC = () => {
             <EmptyState
               icon={<FileText size={24} />}
               title="No daily reports yet"
-              description="Attendance recorded on the desktop app becomes a daily report here."
             />
           ) : (
             <div className="table-wrap">

@@ -2,12 +2,12 @@ import React from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard,
-  ClipboardList,
   CreditCard,
   Users,
   KeyRound,
   FileText,
   HardHat,
+  UserPlus,
 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { useAuth } from '../hooks/useAuth'
@@ -32,14 +32,14 @@ export const AdminShell: React.FC = () => (
     homePath="/admin"
     navItems={[
       { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
-      { to: '/admin/requests', label: 'Owner requests', icon: ClipboardList },
+      { to: '/admin/requests', label: 'Owner requests', icon: UserPlus },
       { to: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
     ]}
     titles={{
       '/admin': { title: 'Admin overview', subtitle: 'Requests, subscriptions & seats' },
       '/admin/requests': {
-        title: 'Owner requests',
-        subtitle: 'Approve companies that want to use Ubaka',
+        title: 'Owner registration requests',
+        subtitle: 'Review and approve owner registrations',
       },
       '/admin/subscriptions': {
         title: 'Subscriptions',
@@ -60,23 +60,11 @@ export const OwnerShell: React.FC = () => (
       { to: '/owner/reports', label: 'Daily reports', icon: FileText },
     ]}
     titles={{
-      '/owner': { title: 'Site overview', subtitle: 'Live attendance data' },
-      '/owner/workers': {
-        title: 'Site workers',
-        subtitle: 'The same roster the Field Engineer manages on desktop',
-      },
-      '/owner/engineers': {
-        title: 'Field engineers',
-        subtitle: 'Create engineers and share activation keys',
-      },
-      '/owner/keys': {
-        title: 'Activation keys',
-        subtitle: 'Keys that unlock the desktop app per site',
-      },
-      '/owner/reports': {
-        title: 'Daily reports',
-        subtitle: 'Attendance summaries from the desktop app',
-      },
+      '/owner': { title: 'Site overview' },
+      '/owner/workers': { title: 'Site workers' },
+      '/owner/engineers': { title: 'Field engineers' },
+      '/owner/keys': { title: 'Activation keys' },
+      '/owner/reports': { title: 'Daily reports' },
     }}
   />
 )

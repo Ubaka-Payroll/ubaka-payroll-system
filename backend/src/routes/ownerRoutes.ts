@@ -38,8 +38,8 @@ router.get('/site', async (req, res) => {
   return res.json(await getSiteSnapshot(req.user!.id))
 })
 
-router.get('/workers', async (_req, res) => {
-  return res.json(await listSiteWorkers())
+router.get('/workers', async (req, res) => {
+  return res.json(await listSiteWorkers(req.user!.id))
 })
 
 router.get('/engineers', async (req, res) => {

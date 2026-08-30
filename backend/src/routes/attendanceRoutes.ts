@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import { AttendanceController } from '../controllers/AttendanceController'
+import { requireAuth } from '../middleware/auth'
 
 const router = Router()
 const attendanceController = new AttendanceController()
+
+router.use(requireAuth)
 
 // Attendance event routes
 router.post('/events', attendanceController.recordEvent)

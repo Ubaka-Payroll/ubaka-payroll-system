@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/workers', label: 'Workers', icon: Users },
   { to: '/attendance', label: 'Attendance', icon: Fingerprint },
-  { to: '/after-hours', label: 'After 4:00', icon: Timer },
+  { to: '/after-hours', label: 'After 6:00', icon: Timer },
   { to: '/reports', label: 'Reports', icon: FileBarChart },
   { to: '/register', label: 'Register', icon: UserPlus },
 ]
@@ -26,7 +26,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/workers': { title: 'Workers', subtitle: 'Manage workforce roster' },
   '/attendance': { title: 'Record Attendance', subtitle: 'Scan or search to clock events' },
   '/after-hours': {
-    title: 'After 4:00',
+    title: 'After 6:00',
     subtitle: 'Decide overtime vs delayed leaving',
   },
   '/reports': { title: 'Reports', subtitle: 'Daily, monthly, and payroll tables' },
@@ -47,6 +47,8 @@ const AppLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const meta = resolvePageMeta(location.pathname)
+  const rawEngineer = localStorage.getItem('ubaka_engineer_data')
+  const engineer = rawEngineer ? JSON.parse(rawEngineer) : null
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -116,6 +118,28 @@ const AppLayout: React.FC = () => {
           <div className="topbar__titles">
             <h1 className="topbar__title">{meta.title}</h1>
             <p className="topbar__subtitle">{meta.subtitle}</p>
+          </div>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            {engineer && (
+              <div style={{ textAlign: 'right', fontSize: '0.8125rem', lineHeight: 1.3 }}>
+                <div style={{ fontWeight: 700, color: 'var(--text)' }}>{engineer.siteName || engineer.companyName}</div>
+                <div style={{ color: 'var(--text-muted)' }}>{engineer.fullName}</div>
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.8125rem', padding: '0.4rem 0.75rem' }}
+              onClick={() => {
+                localStorage.removeItem('ubaka_engineer_token')
+                localStorage.removeItem('ubaka_engineer_data')
+                window.location.reload()
+              }}
+              title="Switch Site / Log Out"
+            >
+              Switch Site
+            </button>
           </div>
         </header>
 

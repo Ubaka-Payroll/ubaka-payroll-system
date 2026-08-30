@@ -2,13 +2,15 @@ import React from 'react'
 
 type LogoProps = {
   className?: string
+  style?: React.CSSProperties
   title?: string
 }
 
 /** Ubaka mark from frontend/logo.svg — uses currentColor for theming. */
-const Logo: React.FC<LogoProps> = ({ className, title = 'Ubaka' }) => (
+const Logo: React.FC<LogoProps> = ({ className, style, title = 'Ubaka' }) => (
   <svg
     className={className}
+    style={style}
     width="48"
     height="47"
     viewBox="0 0 48 47"

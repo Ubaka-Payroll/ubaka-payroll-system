@@ -22,12 +22,14 @@ export class AttendanceController {
                 return
             }
 
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
             const event = await this.attendanceService.recordAttendanceEvent(
                 workerId,
                 eventType as EventType,
                 timestamp ? new Date(timestamp) : new Date(),
                 isManualEntry || false,
-                createdBy
+                createdBy || (req as any).user?.fullName || 'Desktop App',
+                { ownerId }
             )
 
             const response: ApiResponse = {
@@ -108,6 +110,7 @@ export class AttendanceController {
     getDailySummary = async (req: Request, res: Response): Promise<void> => {
         try {
             const date = req.query.date ? new Date(req.query.date as string) : new Date()
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
 
             if (isNaN(date.getTime())) {
                 const response: ApiResponse = {
@@ -118,7 +121,7 @@ export class AttendanceController {
                 return
             }
 
-            const summary = await this.attendanceService.getDailySummary(date)
+            const summary = await this.attendanceService.getDailySummary(date, ownerId)
 
             const response: ApiResponse = {
                 success: true,
@@ -225,9 +228,10 @@ export class AttendanceController {
         }
     }
 
-    getAfterHoursQueue = async (_req: Request, res: Response): Promise<void> => {
+    getAfterHoursQueue = async (req: Request, res: Response): Promise<void> => {
         try {
-            const data = await this.attendanceService.getAfterHoursQueue()
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+            const data = await this.attendanceService.getAfterHoursQueue(ownerId)
             const response: ApiResponse = {
                 success: true,
                 data,

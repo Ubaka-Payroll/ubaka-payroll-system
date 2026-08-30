@@ -68,10 +68,10 @@ function localToday(): string {
 }
 
 export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
-  const [site, engineer, workers] = await Promise.all([
+  const [user, engineer, keys, regRequest, siteConfig, workers] = await Promise.all([
     pool().query(
-      `SELECT site_name, site_location, opening_time, closing_time
-       FROM site_configuration WHERE id = 1`,
+      `SELECT company_name, full_name, email FROM app_user WHERE id = $1`,
+      [ownerId],
     ),
     pool().query(
       `SELECT id, full_name, site_name
@@ -81,26 +81,47 @@ export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
        LIMIT 1`,
       [ownerId],
     ),
-    pool().query(`SELECT COUNT(*)::int AS count FROM worker WHERE is_active = true`),
+    pool().query(
+      `SELECT site_name FROM activation_key WHERE owner_id = $1 AND site_name IS NOT NULL AND site_name != '' LIMIT 1`,
+      [ownerId],
+    ),
+    pool().query(
+      `SELECT company_name, site_names FROM owner_registration_request WHERE email = (SELECT email FROM app_user WHERE id = $1) LIMIT 1`,
+      [ownerId],
+    ),
+    pool().query(
+      `SELECT opening_time, closing_time FROM site_configuration LIMIT 1`,
+    ),
+    pool().query(`SELECT COUNT(*)::int AS count FROM worker WHERE is_active = true AND owner_id = $1`, [ownerId]),
   ])
 
+  const companyName = user.rows[0]?.company_name || regRequest.rows[0]?.company_name
+  const defaultSiteFromReg = regRequest.rows[0]?.site_names?.[0]
+  const siteName = engineer.rows[0]?.site_name || keys.rows[0]?.site_name || defaultSiteFromReg || (companyName ? `${companyName} Site` : 'Site')
+  const workerCount = workers.rows[0]?.count || 0
+
   return {
-    siteName: site.rows[0]?.site_name || engineer.rows[0]?.site_name || 'Construction site',
-    siteLocation: site.rows[0]?.site_location || '',
-    openingTime: clock(site.rows[0]?.opening_time),
-    closingTime: clock(site.rows[0]?.closing_time),
+    siteName,
+    siteLocation: 'Site Location',
+    openingTime: clock(siteConfig.rows[0]?.opening_time),
+    closingTime: clock(siteConfig.rows[0]?.closing_time),
     engineerId: engineer.rows[0]?.id || ownerId,
-    engineerName: engineer.rows[0]?.full_name || 'Field Engineer',
-    workerCount: workers.rows[0]?.count || 0,
+    engineerName: engineer.rows[0]?.full_name || 'No Active Engineer',
+    workerCount,
   }
 }
 
-export async function listSiteWorkers(): Promise<SiteWorker[]> {
+export async function listSiteWorkers(ownerId?: string): Promise<SiteWorker[]> {
+  if (!ownerId) {
+    return []
+  }
+
   const result = await pool().query(
     `SELECT id, worker_number, nid, full_name, classification, phone_number, hourly_rate, is_active
      FROM worker
-     WHERE is_active = true
+     WHERE is_active = true AND owner_id = $1
      ORDER BY worker_number`,
+    [ownerId],
   )
   return result.rows.map((row) => ({
     id: Number(row.id),
@@ -161,7 +182,7 @@ function mapRow(row: Record<string, unknown>): DailyReportRow {
   }
 }
 
-async function storedRowsForDate(date: string): Promise<DailyReportRow[]> {
+async function storedRowsForDate(date: string, ownerId: string): Promise<DailyReportRow[]> {
   const result = await pool().query(
     `
     SELECT
@@ -181,26 +202,27 @@ async function storedRowsForDate(date: string): Promise<DailyReportRow[]> {
     FROM worker w
     INNER JOIN attendance_event ae ON ae.worker_id = w.id AND DATE(ae.timestamp) = $1::date
     LEFT JOIN daily_wage dw ON dw.worker_id = w.id AND dw.work_date = $1::date
+    WHERE (w.owner_id = $2 OR ae.owner_id = $2)
     GROUP BY
       w.id, w.worker_number, w.full_name, w.classification,
       dw.break_duration_ms, dw.hours_worked, dw.wage_amount
     ORDER BY w.full_name
     `,
-    [date],
+    [date, ownerId],
   )
   return result.rows.map(mapRow)
 }
 
-async function liveRowsForDate(date: string): Promise<DailyReportRow[]> {
-  const rows = await attendanceService.getDailySummary(new Date(`${date}T12:00:00`))
+async function liveRowsForDate(date: string, ownerId: string): Promise<DailyReportRow[]> {
+  const rows = await attendanceService.getDailySummary(new Date(`${date}T12:00:00`), ownerId)
   return rows.map(mapRow)
 }
 
-async function rowsForDate(date: string): Promise<DailyReportRow[]> {
+async function rowsForDate(date: string, ownerId: string): Promise<DailyReportRow[]> {
   if (date === localToday()) {
-    return liveRowsForDate(date)
+    return liveRowsForDate(date, ownerId)
   }
-  return storedRowsForDate(date)
+  return storedRowsForDate(date, ownerId)
 }
 
 export async function listAttendanceReports(ownerId: string): Promise<Omit<DailyReport, 'rows'>[]> {
@@ -208,13 +230,14 @@ export async function listAttendanceReports(ownerId: string): Promise<Omit<Daily
     `
     SELECT d::date AS report_date
     FROM (
-      SELECT DISTINCT work_date AS d FROM daily_wage
+      SELECT DISTINCT work_date AS d FROM daily_wage WHERE owner_id = $1
       UNION
-      SELECT DISTINCT DATE(timestamp) AS d FROM attendance_event
+      SELECT DISTINCT DATE(timestamp) AS d FROM attendance_event WHERE owner_id = $1
     ) dates
     ORDER BY report_date DESC
     LIMIT 90
     `,
+    [ownerId],
   )
 
   const snapshot = await getSiteSnapshot(ownerId)
@@ -222,7 +245,7 @@ export async function listAttendanceReports(ownerId: string): Promise<Omit<Daily
 
   for (const row of dates.rows) {
     const reportDate = dateOnly(row.report_date)!
-    const workerRows = await rowsForDate(reportDate)
+    const workerRows = await rowsForDate(reportDate, ownerId)
     if (workerRows.length === 0) continue
     const { rows: _rows, ...meta } = toReport(ownerId, snapshot, reportDate, workerRows)
     reports.push(meta)
@@ -236,7 +259,8 @@ export async function getAttendanceReport(
   reportDate: string,
 ): Promise<DailyReport | null> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return null
-  const workerRows = await rowsForDate(reportDate)
+
+  const workerRows = await rowsForDate(reportDate, ownerId)
   if (workerRows.length === 0) return null
   const snapshot = await getSiteSnapshot(ownerId)
   return toReport(ownerId, snapshot, reportDate, workerRows)

@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import { WorkerController } from '../controllers/WorkerController'
+import { requireAuth } from '../middleware/auth'
 
 const router = Router()
 const workerController = new WorkerController()
+
+router.use(requireAuth)
 
 // Worker routes
 router.post('/', workerController.registerWorker)

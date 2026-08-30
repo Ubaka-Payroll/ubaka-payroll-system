@@ -573,6 +573,16 @@ img {
   background: #ffe4e6;
 }
 
+.btn-warning {
+  background: #fffbeb;
+  color: var(--amber-dark);
+  border: 1px solid #fde68a;
+}
+
+.btn-warning:not(:disabled):hover {
+  background: #fef3c7;
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);

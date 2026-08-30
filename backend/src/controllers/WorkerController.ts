@@ -11,7 +11,8 @@ export class WorkerController {
 
   registerWorker = async (req: Request, res: Response): Promise<void> => {
     try {
-      const worker = await this.workerService.registerWorker(req.body)
+      const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+      const worker = await this.workerService.registerWorker({ ...req.body, ownerId })
       const response: ApiResponse = {
         success: true,
         data: worker,
@@ -58,7 +59,8 @@ export class WorkerController {
   getAllWorkers = async (req: Request, res: Response): Promise<void> => {
     try {
       const includeInactive = req.query.includeInactive === 'true'
-      const workers = await this.workerService.getAllWorkers(includeInactive)
+      const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+      const workers = await this.workerService.getAllWorkers(includeInactive, ownerId)
 
       const response: ApiResponse = {
         success: true,
@@ -132,7 +134,8 @@ export class WorkerController {
   searchWorkers = async (req: Request, res: Response): Promise<void> => {
     try {
       const searchTerm = req.query.q as string
-      const workers = await this.workerService.searchWorkers(searchTerm || '')
+      const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+      const workers = await this.workerService.searchWorkers(searchTerm || '', ownerId)
 
       const response: ApiResponse = {
         success: true,

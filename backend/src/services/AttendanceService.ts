@@ -53,7 +53,7 @@ export class AttendanceService {
         timestamp: Date = new Date(),
         isManualEntry: boolean = false,
         createdBy?: string,
-        options: { skipSequenceCheck?: boolean } = {}
+        options: { skipSequenceCheck?: boolean; ownerId?: string } = {}
     ): Promise<AttendanceEvent> {
         const worker = await this.workerRepository.findById(workerId)
         if (!worker) {
@@ -268,8 +268,8 @@ export class AttendanceService {
         }
     }
 
-    async getDailySummary(date: Date): Promise<any[]> {
-        const rows = await this.attendanceRepository.getDailyAttendanceSummary(date)
+    async getDailySummary(date: Date, ownerId?: string): Promise<any[]> {
+        const rows = await this.attendanceRepository.getDailyAttendanceSummary(date, ownerId)
 
         // Refresh hours / wage / breaks for every worker present today
         for (const row of rows) {
@@ -433,10 +433,10 @@ export class AttendanceService {
         return filtered.sort((a, b) => b.date.localeCompare(a.date))
     }
 
-    async getAfterHoursQueue() {
+    async getAfterHoursQueue(ownerId?: string) {
         const now = new Date()
         const afterHoursToday = now >= checkoutReviewOn(now)
-        const rows = await this.checkoutReviewRepository.listOpenCases(30)
+        const rows = await this.checkoutReviewRepository.listOpenCases(30, ownerId)
         const pending: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
         const overtimeOpen: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
         const resolved: ReturnType<AttendanceService['mapAfterHoursRow']>[] = []
@@ -472,7 +472,7 @@ export class AttendanceService {
 
         return {
             afterHoursToday,
-            workEnd: '16:00',
+            workEnd: '18:00',
             pending,
             overtimeOpen,
             resolved: resolved.filter(r => {

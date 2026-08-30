@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Users, CheckCircle2, Activity, CalendarDays, Wallet, Clock, AlertCircle, TrendingUp, Eye, Timer } from 'lucide-react'
+import { Users, CheckCircle2, Activity, CalendarDays, Wallet, Clock, AlertCircle, TrendingUp, Eye } from 'lucide-react'
 import { attendanceService } from '../services/attendanceService'
 import attendanceCalculationService, { DailyWorkSummary } from '../services/attendanceCalculationService'
 import { LoadingState, EmptyState } from '../components/ui'
@@ -31,21 +30,17 @@ const Dashboard: React.FC = () => {
   const [summary, setSummary] = useState<DailySummary[]>([])
   const [pendingReview, setPendingReview] = useState<DailyWorkSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [calculating, setCalculating] = useState(false)
   const toast = useToast()
   const [selectedDate] = useState<string>(new Date().toISOString().split('T')[0])
-  const [pendingAfterHours, setPendingAfterHours] = useState(0)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [selectedSummary, setSelectedSummary] = useState<DailyWorkSummary | null>(null)
 
   useEffect(() => {
     loadDailySummary()
     loadPendingReview()
-    loadAfterHoursCount()
     const id = window.setInterval(() => {
       loadDailySummary({ silent: true })
       loadPendingReview()
-      loadAfterHoursCount()
     }, 60_000)
     return () => window.clearInterval(id)
   }, [])
@@ -66,34 +61,12 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const loadAfterHoursCount = async () => {
-    try {
-      const queue = await attendanceService.getAfterHoursQueue()
-      setPendingAfterHours(queue.pending.length + queue.overtimeOpen.length)
-    } catch {
-      // After-hours queue is independent of the main dashboard table
-    }
-  }
-
   const loadPendingReview = async () => {
     try {
       const summaries = await attendanceCalculationService.getPendingReview()
       setPendingReview(summaries)
     } catch (error: any) {
       console.error('Error loading pending reviews:', error)
-    }
-  }
-
-  const handleBatchCalculate = async () => {
-    setCalculating(true)
-    try {
-      const result = await attendanceCalculationService.calculateBatch(selectedDate)
-      toast.success(`Batch calculation complete: ${result.success}/${result.total} workers processed`)
-      await loadPendingReview()
-    } catch (error: any) {
-      toast.error('Failed to run batch calculation')
-    } finally {
-      setCalculating(false)
     }
   }
 
@@ -227,22 +200,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {pendingAfterHours > 0 && (
-        <div className="panel" style={{ marginBottom: '1.25rem' }}>
-          <div className="panel__head" style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
-            <h2 className="panel__title">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Timer size={18} />
-                After 4:00 — {pendingAfterHours} worker{pendingAfterHours === 1 ? '' : 's'} need a decision
-              </div>
-            </h2>
-            <Link to="/after-hours" className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem' }}>
-              Open After 4:00
-            </Link>
-          </div>
-        </div>
-      )}
-
       {pendingReviewView.length > 0 && (
         <div className="panel" style={{ marginBottom: '1.25rem' }}>
           <div className="panel__head" style={{ background: '#fff1f2', borderColor: '#fecdd3' }}>
@@ -318,7 +275,6 @@ const Dashboard: React.FC = () => {
             <EmptyState
               icon={<Users size={24} />}
               title="No attendance yet"
-              description="Records will appear here once workers scan in for the day."
             />
           ) : (
             <div className="table-wrap">

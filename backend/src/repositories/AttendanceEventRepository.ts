@@ -58,11 +58,12 @@ export class AttendanceEventRepository extends BaseRepository<AttendanceEvent> {
     eventType: EventType,
     timestamp: Date,
     isManualEntry: boolean = false,
-    createdBy?: string
+    createdBy?: string,
+    ownerId?: string
   ): Promise<AttendanceEvent> {
     const query = `
-      INSERT INTO ${this.tableName} (worker_id, event_type, timestamp, is_manual_entry, created_by)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO ${this.tableName} (worker_id, event_type, timestamp, is_manual_entry, created_by, owner_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `
     const result = await this.pool.query(query, [
@@ -70,12 +71,16 @@ export class AttendanceEventRepository extends BaseRepository<AttendanceEvent> {
       eventType,
       timestamp,
       isManualEntry,
-      createdBy,
+      createdBy || null,
+      ownerId || null,
     ])
     return result.rows[0]
   }
 
-  async getDailyAttendanceSummary(date: Date): Promise<any[]> {
+  async getDailyAttendanceSummary(date: Date, ownerId?: string): Promise<any[]> {
+    if (!ownerId) {
+      return []
+    }
     const query = `
       SELECT
         w.id as worker_id,
@@ -91,13 +96,13 @@ export class AttendanceEventRepository extends BaseRepository<AttendanceEvent> {
       FROM worker w
       INNER JOIN ${this.tableName} ae ON w.id = ae.worker_id
       LEFT JOIN daily_wage dw ON dw.worker_id = w.id AND dw.work_date = DATE($1)
-      WHERE DATE(ae.timestamp) = DATE($1)
+      WHERE DATE(ae.timestamp) = DATE($1) AND (w.owner_id = $2 OR ae.owner_id = $2)
       GROUP BY
         w.id, w.worker_number, w.full_name, w.classification, w.hourly_rate,
         dw.hours_worked, dw.wage_amount
       ORDER BY w.full_name
     `
-    const result = await this.pool.query(query, [date])
+    const result = await this.pool.query(query, [date, ownerId])
     return result.rows
   }
 }

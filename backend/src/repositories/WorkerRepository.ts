@@ -24,13 +24,33 @@ export class WorkerRepository extends BaseRepository<Worker> {
     return result.rows
   }
 
-  async findActiveWorkers(): Promise<Worker[]> {
+  async findActiveWorkers(ownerId?: string): Promise<Worker[]> {
+    if (ownerId) {
+      const query = `SELECT * FROM ${this.tableName} WHERE is_active = true AND owner_id = $1 ORDER BY full_name`
+      const result = await this.pool.query(query, [ownerId])
+      return result.rows
+    }
     const query = `SELECT * FROM ${this.tableName} WHERE is_active = true ORDER BY full_name`
     const result = await this.pool.query(query)
     return result.rows
   }
 
-  async searchWorkers(searchTerm: string): Promise<Worker[]> {
+  async searchWorkers(searchTerm: string, ownerId?: string): Promise<Worker[]> {
+    if (ownerId) {
+      const query = `
+        SELECT * FROM ${this.tableName}
+        WHERE (
+          full_name ILIKE $1
+          OR worker_number ILIKE $1
+          OR nid ILIKE $1
+        )
+        AND is_active = true
+        AND owner_id = $2
+        ORDER BY full_name
+      `
+      const result = await this.pool.query(query, [`%${searchTerm}%`, ownerId])
+      return result.rows
+    }
     const query = `
       SELECT * FROM ${this.tableName}
       WHERE (
