@@ -45,7 +45,6 @@ const Reports: React.FC = () => {
             <EmptyState
               icon={<FileText size={24} />}
               title="No reports yet"
-              description="Daily attendance records from the desktop application."
             />
           ) : (
             <div className="table-wrap">

@@ -59,7 +59,6 @@ const Workers: React.FC = () => {
             <EmptyState
               icon={<HardHat size={24} />}
               title="No workers on this site yet"
-              description="Workers registered via the desktop application."
             />
           ) : (
             <div className="table-wrap">

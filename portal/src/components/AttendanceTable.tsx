@@ -9,17 +9,15 @@ import type { DailyReportRow } from '../types'
 const AttendanceTable: React.FC<{
   rows: DailyReportRow[]
   emptyTitle?: string
-  emptyDescription?: string
 }> = ({
   rows,
   emptyTitle = 'No attendance yet',
-  emptyDescription = 'Attendance records from desktop application.',
 }) => {
     const classFilter = useClassificationFilter(rows, w => w.classification)
 
     if (rows.length === 0) {
       return (
-        <EmptyState icon={<Users size={24} />} title={emptyTitle} description={emptyDescription} />
+        <EmptyState icon={<Users size={24} />} title={emptyTitle} />
       )
     }
 

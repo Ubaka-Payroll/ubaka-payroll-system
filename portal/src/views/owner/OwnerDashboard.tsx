@@ -166,7 +166,6 @@ const OwnerDashboard: React.FC = () => {
           <AttendanceTable
             rows={today?.rows || []}
             emptyTitle="No attendance yet today"
-            emptyDescription="Worker attendance records from desktop application."
           />
         </div>
       </div>
