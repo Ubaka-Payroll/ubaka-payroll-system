@@ -67,8 +67,17 @@ function localToday(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** Check if owner has activated any key on the desktop app */
+async function hasActivatedKey(ownerId: string): Promise<boolean> {
+  const res = await pool().query(
+    `SELECT 1 FROM activation_key WHERE owner_id = $1 AND status = 'USED'`,
+    [ownerId],
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
 export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
-  const [user, engineer, keys, regRequest, siteConfig, workers] = await Promise.all([
+  const [user, engineer, keys, regRequest, siteConfig, workers, activated] = await Promise.all([
     pool().query(
       `SELECT company_name, full_name, email FROM app_user WHERE id = $1`,
       [ownerId],
@@ -82,7 +91,7 @@ export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
       [ownerId],
     ),
     pool().query(
-      `SELECT site_name FROM activation_key WHERE owner_id = $1 AND site_name IS NOT NULL AND site_name != '' LIMIT 1`,
+      `SELECT site_name FROM activation_key WHERE owner_id = $1 AND status = 'USED' AND site_name IS NOT NULL AND site_name != '' LIMIT 1`,
       [ownerId],
     ),
     pool().query(
@@ -93,12 +102,13 @@ export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
       `SELECT opening_time, closing_time FROM site_configuration LIMIT 1`,
     ),
     pool().query(`SELECT COUNT(*)::int AS count FROM worker WHERE is_active = true AND owner_id = $1`, [ownerId]),
+    hasActivatedKey(ownerId),
   ])
 
   const companyName = user.rows[0]?.company_name || regRequest.rows[0]?.company_name
   const defaultSiteFromReg = regRequest.rows[0]?.site_names?.[0]
-  const siteName = engineer.rows[0]?.site_name || keys.rows[0]?.site_name || defaultSiteFromReg || (companyName ? `${companyName} Site` : 'Site')
-  const workerCount = workers.rows[0]?.count || 0
+  const siteName = keys.rows[0]?.site_name || engineer.rows[0]?.site_name || defaultSiteFromReg || (companyName ? `${companyName} Site` : 'Site')
+  const workerCount = activated ? (workers.rows[0]?.count || 0) : 0
 
   return {
     siteName,
@@ -113,6 +123,12 @@ export async function getSiteSnapshot(ownerId: string): Promise<SiteSnapshot> {
 
 export async function listSiteWorkers(ownerId?: string): Promise<SiteWorker[]> {
   if (!ownerId) {
+    return []
+  }
+
+  // Only return workers if the owner has activated key for their site
+  const activated = await hasActivatedKey(ownerId)
+  if (!activated) {
     return []
   }
 
@@ -202,7 +218,7 @@ async function storedRowsForDate(date: string, ownerId: string): Promise<DailyRe
     FROM worker w
     INNER JOIN attendance_event ae ON ae.worker_id = w.id AND DATE(ae.timestamp) = $1::date
     LEFT JOIN daily_wage dw ON dw.worker_id = w.id AND dw.work_date = $1::date
-    WHERE (w.owner_id = $2 OR ae.owner_id = $2)
+    WHERE w.owner_id = $2 AND (ae.owner_id = $2 OR ae.owner_id IS NULL)
     GROUP BY
       w.id, w.worker_number, w.full_name, w.classification,
       dw.break_duration_ms, dw.hours_worked, dw.wage_amount
@@ -226,13 +242,24 @@ async function rowsForDate(date: string, ownerId: string): Promise<DailyReportRo
 }
 
 export async function listAttendanceReports(ownerId: string): Promise<Omit<DailyReport, 'rows'>[]> {
+  const activated = await hasActivatedKey(ownerId)
+  if (!activated) {
+    return []
+  }
+
   const dates = await pool().query(
     `
     SELECT d::date AS report_date
     FROM (
-      SELECT DISTINCT work_date AS d FROM daily_wage WHERE owner_id = $1
+      SELECT DISTINCT dw.work_date AS d
+      FROM daily_wage dw
+      JOIN worker w ON w.id = dw.worker_id
+      WHERE dw.owner_id = $1 OR w.owner_id = $1
       UNION
-      SELECT DISTINCT DATE(timestamp) AS d FROM attendance_event WHERE owner_id = $1
+      SELECT DISTINCT DATE(ae.timestamp) AS d
+      FROM attendance_event ae
+      JOIN worker w ON w.id = ae.worker_id
+      WHERE ae.owner_id = $1 OR w.owner_id = $1
     ) dates
     ORDER BY report_date DESC
     LIMIT 90
@@ -259,6 +286,9 @@ export async function getAttendanceReport(
   reportDate: string,
 ): Promise<DailyReport | null> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return null
+
+  const activated = await hasActivatedKey(ownerId)
+  if (!activated) return null
 
   const workerRows = await rowsForDate(reportDate, ownerId)
   if (workerRows.length === 0) return null

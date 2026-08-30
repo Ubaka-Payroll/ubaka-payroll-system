@@ -111,19 +111,19 @@ export class ReportService {
     }
 
     /**
-     * Generate monthly report for all workers
+     * Generate monthly report for workers belonging to an owner
      */
-    async generateMonthlyReport(month: number, year: number): Promise<MonthlyReportData> {
+    async generateMonthlyReport(month: number, year: number, ownerId?: string): Promise<MonthlyReportData> {
         try {
-            logger.info('Generating monthly report', { month, year })
+            logger.info('Generating monthly report', { month, year, ownerId })
 
             // Calculate date range
             const startDate = `${year}-${String(month).padStart(2, '0')}-01`
             const lastDay = new Date(year, month, 0).getDate()
             const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-            // Get all workers
-            const workers = await this.workerRepo.findActiveWorkers()
+            // Get workers for owner
+            const workers = await this.workerRepo.findActiveWorkers(ownerId)
             const workerStats: WorkerMonthlyStats[] = []
 
             for (const worker of workers) {
@@ -299,13 +299,13 @@ export class ReportService {
     }
 
     /**
-     * Generate payroll export data
+     * Generate payroll export data for workers belonging to an owner
      */
-    async generatePayrollExport(startDate: string, endDate: string): Promise<PayrollExportData> {
+    async generatePayrollExport(startDate: string, endDate: string, ownerId?: string): Promise<PayrollExportData> {
         try {
-            logger.info('Generating payroll export', { startDate, endDate })
+            logger.info('Generating payroll export', { startDate, endDate, ownerId })
 
-            const workers = await this.workerRepo.findActiveWorkers()
+            const workers = await this.workerRepo.findActiveWorkers(ownerId)
             const workerData = []
 
             for (const worker of workers) {

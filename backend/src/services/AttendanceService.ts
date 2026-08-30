@@ -268,8 +268,8 @@ export class AttendanceService {
         }
     }
 
-    async getDailySummary(date: Date, ownerId?: string): Promise<any[]> {
-        const rows = await this.attendanceRepository.getDailyAttendanceSummary(date, ownerId)
+    async getDailySummary(date: Date, ownerId?: string, siteName?: string): Promise<any[]> {
+        const rows = await this.attendanceRepository.getDailyAttendanceSummary(date, ownerId, siteName)
 
         // Refresh hours / wage / breaks for every worker present today
         for (const row of rows) {

@@ -111,6 +111,7 @@ export class AttendanceController {
         try {
             const date = req.query.date ? new Date(req.query.date as string) : new Date()
             const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+            const siteName = (req as any).user?.siteName || (req.query.siteName as string)
 
             if (isNaN(date.getTime())) {
                 const response: ApiResponse = {
@@ -121,7 +122,7 @@ export class AttendanceController {
                 return
             }
 
-            const summary = await this.attendanceService.getDailySummary(date, ownerId)
+            const summary = await this.attendanceService.getDailySummary(date, ownerId, siteName)
 
             const response: ApiResponse = {
                 success: true,

@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { pool, mapSubscription, mapEngineer, mapKey } from '../services/portalMappers'
 import { listAttendanceReports, getAttendanceReport, getTodayReport, getSiteSnapshot, listSiteWorkers } from '../services/PortalReportService'
+import { EmailService } from '../services/EmailService'
+import { logger } from '../utils/Logger'
 
 const router = Router()
 
@@ -109,6 +111,14 @@ router.post('/engineers', async (req, res) => {
       [available.rows[0].id, engineer.rows[0].id, siteName],
     )
     await pool().query('COMMIT')
+
+    // Send real-time notification email with Activation Key via Resend
+    EmailService.sendEngineerCreatedNotice(
+      email,
+      fullName,
+      siteName,
+      available.rows[0].key
+    ).catch(err => logger.error('Failed sending engineer activation key email', err))
 
     return res.status(201).json({
       ...mapEngineer({ ...engineer.rows[0], activation_key: available.rows[0].key }),

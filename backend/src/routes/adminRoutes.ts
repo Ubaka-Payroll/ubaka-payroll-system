@@ -262,8 +262,14 @@ router.post('/subscriptions/:ownerId/keys', async (req, res) => {
     }
     await pool().query(
       `UPDATE subscription
-       SET seats = GREATEST(seats, (SELECT COUNT(*) FROM activation_key WHERE owner_id = $1))
+       SET seats = (SELECT COUNT(*)::int FROM activation_key WHERE owner_id = $1)
        WHERE owner_id = $1`,
+      [ownerId],
+    )
+    await pool().query(
+      `UPDATE owner_registration_request
+       SET number_of_sites = (SELECT COUNT(*)::int FROM activation_key WHERE owner_id = $1)
+       WHERE LOWER(email) = (SELECT LOWER(email) FROM app_user WHERE id = $1)`,
       [ownerId],
     )
     await pool().query('COMMIT')
@@ -273,6 +279,46 @@ router.post('/subscriptions/:ownerId/keys', async (req, res) => {
   }
 
   return res.status(201).json({ keys })
+})
+
+router.patch('/subscriptions/:id/seats', async (req, res) => {
+  const { id } = req.params
+  const seats = Math.max(1, Number(req.body?.seats ?? 1))
+
+  const sub = await pool().query('SELECT * FROM subscription WHERE id = $1', [id])
+  if (!sub.rows[0]) return res.status(404).json({ error: 'Subscription not found' })
+
+  const ownerId = sub.rows[0].owner_id
+  const currentKeysRes = await pool().query('SELECT COUNT(*)::int AS count FROM activation_key WHERE owner_id = $1', [ownerId])
+  const currentKeys = currentKeysRes.rows[0].count
+
+  await pool().query('BEGIN')
+  try {
+    if (seats > currentKeys) {
+      const keysToGenerate = seats - currentKeys
+      for (let i = 0; i < keysToGenerate; i++) {
+        const key = makeKey()
+        await pool().query(
+          `INSERT INTO activation_key (key, owner_id, status) VALUES ($1, $2, 'AVAILABLE')`,
+          [key, ownerId],
+        )
+      }
+    }
+
+    await pool().query('UPDATE subscription SET seats = $2 WHERE id = $1', [id, seats])
+    await pool().query(
+      `UPDATE owner_registration_request
+       SET number_of_sites = $2
+       WHERE LOWER(email) = (SELECT LOWER(email) FROM app_user WHERE id = $1)`,
+      [ownerId, seats],
+    )
+    await pool().query('COMMIT')
+  } catch (err) {
+    await pool().query('ROLLBACK')
+    throw err
+  }
+
+  return res.json({ message: 'Subscription seats updated and activation keys synchronized', seats })
 })
 
 router.patch('/subscriptions/:id/status', async (req, res) => {

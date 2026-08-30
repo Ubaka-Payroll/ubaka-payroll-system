@@ -10,6 +10,8 @@ export interface Worker {
   hourly_rate: number
   fingerprint_data: Buffer
   is_active: boolean
+  owner_id?: string
+  site_name?: string
   created_at: Date
   updated_at: Date
 }
@@ -23,6 +25,8 @@ export interface WorkerRegistrationData {
   email_address?: string
   hourly_rate: number
   fingerprint_data: Buffer
+  owner_id?: string
+  site_name?: string
 }
 
 // Attendance Types
@@ -35,6 +39,8 @@ export interface AttendanceEvent {
   timestamp: Date
   is_manual_entry: boolean
   created_by?: string
+  owner_id?: string
+  site_name?: string
   created_at: Date
 }
 

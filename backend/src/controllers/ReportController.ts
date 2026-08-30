@@ -29,9 +29,10 @@ export class ReportController {
                 return
             }
 
-            logger.info('Monthly report requested', { year, month })
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+            logger.info('Monthly report requested', { year, month, ownerId })
 
-            const report = await this.reportService.generateMonthlyReport(month, year)
+            const report = await this.reportService.generateMonthlyReport(month, year, ownerId)
 
             res.json({
                 success: true,
@@ -97,9 +98,10 @@ export class ReportController {
                 return
             }
 
-            logger.info('Payroll export requested', { startDate, endDate })
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+            logger.info('Payroll export requested', { startDate, endDate, ownerId })
 
-            const payrollData = await this.reportService.generatePayrollExport(startDate, endDate)
+            const payrollData = await this.reportService.generatePayrollExport(startDate, endDate, ownerId)
 
             res.json({
                 success: true,
@@ -131,9 +133,10 @@ export class ReportController {
                 return
             }
 
-            logger.info('Payroll CSV export requested', { startDate, endDate })
+            const ownerId = (req as any).user?.ownerId || (req as any).user?.id
+            logger.info('Payroll CSV export requested', { startDate, endDate, ownerId })
 
-            const payrollData = await this.reportService.generatePayrollExport(startDate, endDate)
+            const payrollData = await this.reportService.generatePayrollExport(startDate, endDate, ownerId)
 
             // Generate CSV content
             const csvHeader = [

@@ -59,11 +59,12 @@ export class AttendanceEventRepository extends BaseRepository<AttendanceEvent> {
     timestamp: Date,
     isManualEntry: boolean = false,
     createdBy?: string,
-    ownerId?: string
+    ownerId?: string,
+    siteName?: string
   ): Promise<AttendanceEvent> {
     const query = `
-      INSERT INTO ${this.tableName} (worker_id, event_type, timestamp, is_manual_entry, created_by, owner_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO ${this.tableName} (worker_id, event_type, timestamp, is_manual_entry, created_by, owner_id, site_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `
     const result = await this.pool.query(query, [
@@ -73,14 +74,43 @@ export class AttendanceEventRepository extends BaseRepository<AttendanceEvent> {
       isManualEntry,
       createdBy || null,
       ownerId || null,
+      siteName || null,
     ])
     return result.rows[0]
   }
 
-  async getDailyAttendanceSummary(date: Date, ownerId?: string): Promise<any[]> {
+  async getDailyAttendanceSummary(date: Date, ownerId?: string, siteName?: string): Promise<any[]> {
     if (!ownerId) {
       return []
     }
+    if (siteName) {
+      const query = `
+        SELECT
+          w.id as worker_id,
+          w.worker_number,
+          w.full_name,
+          w.classification,
+          w.hourly_rate,
+          MIN(CASE WHEN ae.event_type = 'ENTRY' THEN ae.timestamp END) as entry_time,
+          MAX(CASE WHEN ae.event_type = 'EXIT' THEN ae.timestamp END) as exit_time,
+          COUNT(CASE WHEN ae.event_type = 'LEAVE_SITE' THEN 1 END)::int as break_count,
+          dw.hours_worked,
+          dw.wage_amount as daily_wage
+        FROM worker w
+        INNER JOIN ${this.tableName} ae ON w.id = ae.worker_id
+        LEFT JOIN daily_wage dw ON dw.worker_id = w.id AND dw.work_date = DATE($1)
+        WHERE DATE(ae.timestamp) = DATE($1)
+        AND (w.owner_id = $2 OR ae.owner_id = $2)
+        AND w.site_name = $3
+        GROUP BY
+          w.id, w.worker_number, w.full_name, w.classification, w.hourly_rate,
+          dw.hours_worked, dw.wage_amount
+        ORDER BY w.full_name
+      `
+      const result = await this.pool.query(query, [date, ownerId, siteName])
+      return result.rows
+    }
+
     const query = `
       SELECT
         w.id as worker_id,

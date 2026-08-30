@@ -59,6 +59,7 @@ export class WorkerService {
 
     // 6. Build database entity
     const owner_id = rawData.ownerId || rawData.owner_id || null
+    const site_name = rawData.siteName || rawData.site_name || null
     const entity = {
       nid,
       worker_number,
@@ -69,6 +70,7 @@ export class WorkerService {
       hourly_rate: parseFloat(hourlyRate),
       fingerprint_data: fingerprintBuffer,
       owner_id,
+      site_name,
     }
 
     // 7. Save to DB
@@ -80,15 +82,15 @@ export class WorkerService {
     return await this.workerRepository.findById(id)
   }
 
-  async getAllWorkers(includeInactive: boolean = false, ownerId?: string): Promise<Worker[]> {
+  async getAllWorkers(includeInactive: boolean = false, ownerId?: string, siteName?: string): Promise<Worker[]> {
     if (includeInactive) {
       return await this.workerRepository.findAll()
     }
-    return await this.workerRepository.findActiveWorkers(ownerId)
+    return await this.workerRepository.findActiveWorkers(ownerId, siteName)
   }
 
-  async searchWorkers(searchTerm: string, ownerId?: string): Promise<Worker[]> {
-    return await this.workerRepository.searchWorkers(searchTerm, ownerId)
+  async searchWorkers(searchTerm: string, ownerId?: string, siteName?: string): Promise<Worker[]> {
+    return await this.workerRepository.searchWorkers(searchTerm, ownerId, siteName)
   }
 
   async updateWorker(id: number, data: Partial<Worker>): Promise<Worker> {

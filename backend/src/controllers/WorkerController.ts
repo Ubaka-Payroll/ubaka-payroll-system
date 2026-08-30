@@ -12,7 +12,8 @@ export class WorkerController {
   registerWorker = async (req: Request, res: Response): Promise<void> => {
     try {
       const ownerId = (req as any).user?.ownerId || (req as any).user?.id
-      const worker = await this.workerService.registerWorker({ ...req.body, ownerId })
+      const siteName = (req as any).user?.siteName || (req.body?.siteName as string)
+      const worker = await this.workerService.registerWorker({ ...req.body, ownerId, siteName })
       const response: ApiResponse = {
         success: true,
         data: worker,
@@ -60,7 +61,8 @@ export class WorkerController {
     try {
       const includeInactive = req.query.includeInactive === 'true'
       const ownerId = (req as any).user?.ownerId || (req as any).user?.id
-      const workers = await this.workerService.getAllWorkers(includeInactive, ownerId)
+      const siteName = (req as any).user?.siteName || (req.query.siteName as string)
+      const workers = await this.workerService.getAllWorkers(includeInactive, ownerId, siteName)
 
       const response: ApiResponse = {
         success: true,
@@ -135,7 +137,8 @@ export class WorkerController {
     try {
       const searchTerm = req.query.q as string
       const ownerId = (req as any).user?.ownerId || (req as any).user?.id
-      const workers = await this.workerService.searchWorkers(searchTerm || '', ownerId)
+      const siteName = (req as any).user?.siteName || (req.query.siteName as string)
+      const workers = await this.workerService.searchWorkers(searchTerm || '', ownerId, siteName)
 
       const response: ApiResponse = {
         success: true,

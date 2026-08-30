@@ -1,6 +1,8 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import { OwnerRegistrationRepository } from '../repositories/OwnerRegistrationRepository'
+import { EmailService } from '../services/EmailService'
+import { pool } from '../services/portalMappers'
 import { logger } from '../utils/Logger'
 
 export class OwnerRegistrationController {
@@ -66,6 +68,21 @@ export class OwnerRegistrationController {
             })
 
             logger.info('Owner registration request created', { email, company_name })
+
+            // Real-time Email Notifications via Resend
+            EmailService.sendOwnerRegistrationReceived(
+                registration.email,
+                registration.full_name,
+                registration.company_name,
+                registration.number_of_sites
+            ).catch(err => logger.error('Failed sending owner confirmation email', err))
+
+            EmailService.sendAdminNewRegistrationNotice(
+                'sysadmin@ubaka.com',
+                registration.full_name,
+                registration.company_name,
+                registration.number_of_sites
+            ).catch(err => logger.error('Failed sending admin registration alert email', err))
 
             res.status(201).json({
                 success: true,
@@ -140,6 +157,23 @@ export class OwnerRegistrationController {
                 subscription_key: approved.subscription_key
             })
 
+            // Send Real-time Approval Email with credentials and activation keys
+            try {
+                const userRes = await pool().query('SELECT id FROM app_user WHERE LOWER(email) = LOWER($1)', [approved.email])
+                const ownerUserId = userRes.rows[0]?.id
+                const keyRes = await pool().query('SELECT key, site_name FROM activation_key WHERE owner_id = $1', [ownerUserId])
+                const keys = keyRes.rows.map((r: any) => ({ key: r.key, siteName: r.site_name || 'Construction Site' }))
+
+                EmailService.sendOwnerRegistrationApproved(
+                    approved.email,
+                    approved.full_name,
+                    approved.company_name,
+                    keys
+                ).catch(err => logger.error('Failed sending owner approval email', err))
+            } catch (err) {
+                logger.error('Failed querying keys for approval email', err as Error)
+            }
+
             res.json({
                 success: true,
                 data: approved
@@ -191,6 +225,14 @@ export class OwnerRegistrationController {
             const rejected = await this.repo.reject(String(id), adminId, reason)
 
             logger.info('Owner registration rejected', { email: rejected.email, reason })
+
+            // Send Real-time Rejection Email
+            EmailService.sendOwnerRegistrationRejected(
+                rejected.email,
+                rejected.full_name,
+                rejected.company_name,
+                reason
+            ).catch(err => logger.error('Failed sending owner rejection email', err))
 
             res.json({
                 success: true,
