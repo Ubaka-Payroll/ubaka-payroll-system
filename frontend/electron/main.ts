@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { ServiceSupervisor, type ServiceStatus } from './services'
@@ -77,6 +77,8 @@ function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Allow loading of external resources (Google Fonts, API) from file:// protocol
+      webSecurity: false,
     },
     title: 'Ubaka Attendance Tracking System',
   })
@@ -85,7 +87,10 @@ function createMainWindow(): BrowserWindow {
     win.loadURL(process.env.UBAKA_DEV_URL || 'http://localhost:3000')
     win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+    const rendererPath = path.join(__dirname, 'renderer', 'index.html')
+    win.loadFile(rendererPath).catch((err) => {
+      dialog.showErrorBox('Failed to load UI', `Could not load: ${rendererPath}\n\n${err}`)
+    })
   }
 
   win.once('ready-to-show', () => {
