@@ -7,6 +7,26 @@ export async function runMigrations(pool: Pool): Promise<void> {
     logger.info('Running database column auto-migrations...')
 
     const migrationQueries = [
+      // Tables required by reporting & portal services
+      `CREATE TABLE IF NOT EXISTS owner_registration_request (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        full_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        company_name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        number_of_sites INTEGER DEFAULT 1,
+        site_names TEXT[],
+        status VARCHAR(50) DEFAULT 'PENDING',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );`,
+
+      `CREATE TABLE IF NOT EXISTS site_configuration (
+        id SERIAL PRIMARY KEY,
+        opening_time VARCHAR(20) DEFAULT '07:00',
+        closing_time VARCHAR(20) DEFAULT '17:00',
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );`,
+
       // Multi-tenancy columns on core attendance tables
       `ALTER TABLE worker ADD COLUMN IF NOT EXISTS owner_id UUID;`,
       `ALTER TABLE worker ADD COLUMN IF NOT EXISTS site_name VARCHAR(255);`,
