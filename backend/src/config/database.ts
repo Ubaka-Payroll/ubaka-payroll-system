@@ -1,5 +1,6 @@
 import { Pool, PoolConfig } from 'pg'
 import * as dotenv from 'dotenv'
+import { runMigrations } from './migrations'
 
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || undefined })
 
@@ -50,6 +51,7 @@ class DatabaseManager {
       await client.query('SELECT NOW()')
       client.release()
       console.log('Database connection test successful')
+      await runMigrations(this.pool)
       return true
     } catch (error) {
       console.error('Database connection test failed:', error)

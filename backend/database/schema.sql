@@ -18,6 +18,8 @@ CREATE TABLE worker (
     email_address VARCHAR(255),
     hourly_rate DECIMAL(10, 2) NOT NULL,
     fingerprint_data BYTEA NOT NULL,
+    owner_id UUID,
+    site_name VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -53,6 +55,8 @@ CREATE TABLE attendance_event (
     timestamp TIMESTAMP NOT NULL,
     is_manual_entry BOOLEAN DEFAULT FALSE,
     created_by VARCHAR(255),
+    owner_id UUID,
+    site_name VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (worker_id) REFERENCES worker(id) ON DELETE CASCADE
 );
@@ -92,6 +96,8 @@ CREATE TABLE daily_wage (
     entry_time TIMESTAMP,
     exit_time TIMESTAMP,
     break_duration_ms BIGINT DEFAULT 0,
+    owner_id UUID,
+    site_name VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (worker_id) REFERENCES worker(id) ON DELETE CASCADE,
