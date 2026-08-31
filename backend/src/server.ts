@@ -12,7 +12,6 @@ import adminRoutes from './routes/adminRoutes'
 import ownerRoutes from './routes/ownerRoutes'
 import sysadminRoutes from './routes/sysadminRoutes'
 import ownerRegistrationRoutes from './routes/ownerRegistrationRoutes'
-import setupRoute from './routes/setupRoute'
 import { requestLogger } from './middleware/requestLogger'
 import { requestMetricsMiddleware } from './middleware/requestMetrics'
 import { errorHandler } from './middleware/errorHandler'
@@ -87,7 +86,6 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/owner', ownerRoutes)
 app.use('/api/sysadmin', sysadminRoutes)
 app.use('/api/owner-registration', ownerRegistrationRoutes)
-app.use('/api/setup', setupRoute)
 
 // Aliases for desktop app legacy or direct route POSTs
 app.post('/engineer-login', (req, res, next) => {
