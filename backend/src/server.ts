@@ -12,6 +12,7 @@ import adminRoutes from './routes/adminRoutes'
 import ownerRoutes from './routes/ownerRoutes'
 import sysadminRoutes from './routes/sysadminRoutes'
 import ownerRegistrationRoutes from './routes/ownerRegistrationRoutes'
+import setupRoute from './routes/setupRoute'
 import { requestLogger } from './middleware/requestLogger'
 import { requestMetricsMiddleware } from './middleware/requestMetrics'
 import { errorHandler } from './middleware/errorHandler'
@@ -81,10 +82,22 @@ app.use('/api/fingerprint', fingerprintRoutes)
 app.use('/api/attendance-calculation', attendanceCalculationRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/owner', ownerRoutes)
 app.use('/api/sysadmin', sysadminRoutes)
 app.use('/api/owner-registration', ownerRegistrationRoutes)
+app.use('/api/setup', setupRoute)
+
+// Aliases for desktop app legacy or direct route POSTs
+app.post('/engineer-login', (req, res, next) => {
+  req.url = '/engineer-login'
+  authRoutes(req, res, next)
+})
+app.post('/api/engineer-login', (req, res, next) => {
+  req.url = '/engineer-login'
+  authRoutes(req, res, next)
+})
 
 // Debug endpoint to list all routes
 app.get('/api/debug/routes', (req: Request, res: Response) => {

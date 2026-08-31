@@ -59,8 +59,9 @@ router.post('/requests/:id/approve', async (req, res) => {
   }
 
   const tempPassword = 'welcome123'
-  const passwordHash = await bcrypt.hash(tempPassword, 10)
+  const passwordHash = request.password_hash || await bcrypt.hash(tempPassword, 10)
   const keys: string[] = []
+  const ownerUsedCustomPassword = !!request.password_hash
 
   await pool().query('BEGIN')
   try {
@@ -102,7 +103,7 @@ router.post('/requests/:id/approve', async (req, res) => {
 
   return res.json({
     message: 'Site owner approved and account created',
-    temporaryPassword: tempPassword,
+    temporaryPassword: request.password_hash ? '(owner set their own password at registration)' : tempPassword,
     activationKeys: keys,
   })
 })

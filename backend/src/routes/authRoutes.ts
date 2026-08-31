@@ -88,12 +88,13 @@ router.post('/admin-signup', async (req, res) => {
 })
 
 router.post('/request-access', async (req, res) => {
-  const { fullName, email, companyName, phone, message } = req.body as {
+  const { fullName, email, companyName, phone, message, password } = req.body as {
     fullName?: string
     email?: string
     companyName?: string
     phone?: string
     message?: string
+    password?: string
   }
 
   if (!fullName || !email || !companyName || !phone) {
@@ -113,11 +114,15 @@ router.post('/request-access', async (req, res) => {
     return res.status(409).json({ error: 'A request with this email is already pending' })
   }
 
+  // Hash the owner's chosen password if provided, otherwise use a default
+  const chosenPassword = password?.trim() && password.length >= 6 ? password : 'welcome123'
+  const passwordHash = await bcrypt.hash(chosenPassword, 10)
+
   const inserted = await pool().query(
-    `INSERT INTO owner_request (full_name, email, company_name, phone, message, status)
-     VALUES ($1, $2, $3, $4, $5, 'PENDING')
+    `INSERT INTO owner_request (full_name, email, company_name, phone, message, status, password_hash)
+     VALUES ($1, $2, $3, $4, $5, 'PENDING', $6)
      RETURNING *`,
-    [fullName, email, companyName, phone, message || null],
+    [fullName, email, companyName, phone, message || null, passwordHash],
   )
 
   const request = mapRequest(inserted.rows[0])
