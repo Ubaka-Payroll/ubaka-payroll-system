@@ -43,12 +43,21 @@ _PRELOAD_ORDER_WINDOWS = (
     "sqlite3.dll",
     "libiomp5md.dll",
     "zkfinger10.dll",
+    "libidfprcap.dll",
+    "libsilkidcap.dll",
+    "libzklibcap.dll",
+    "libzkfpmodulecap.dll",
+    "zkfputil.dll",
     "libzkfp.dll",
 )
 
 
-def _core_lib_name() -> str:
-    return "libzkfp.dll" if _IS_WINDOWS else "libzkfp.so"
+def _find_core_windows_lib(lib_dir: Path) -> Optional[str]:
+    candidates = ["zkfputil.dll", "libzkfpmodulecap.dll", "libzkfp.dll"]
+    for c in candidates:
+        if (lib_dir / c).exists():
+            return c
+    return None
 
 
 def default_sdk_lib_dir() -> Path:
@@ -67,13 +76,17 @@ def ensure_library_path(lib_dir: Optional[Path] = None) -> Path:
     """Add SDK lib dir to the loader search path and preload shared objects."""
     lib_dir = Path(lib_dir) if lib_dir else default_sdk_lib_dir()
     if not lib_dir.is_dir():
-        raise FileNotFoundError(f"ZKFinger SDK lib directory not found: {lib_dir}")
+        logger.warning(f"ZKFinger SDK lib directory not found: {lib_dir}")
+        return lib_dir
 
     lib_dir_str = str(lib_dir)
     if _IS_WINDOWS:
         # Python 3.8+ on Windows needs add_dll_directory for dependent DLLs
         if hasattr(os, "add_dll_directory"):
-            os.add_dll_directory(lib_dir_str)
+            try:
+                os.add_dll_directory(lib_dir_str)
+            except Exception:
+                pass
         os.environ["PATH"] = f"{lib_dir_str}{os.pathsep}{os.environ.get('PATH', '')}"
         preload = _PRELOAD_ORDER_WINDOWS
         load = ctypes.WinDLL
@@ -86,15 +99,14 @@ def ensure_library_path(lib_dir: Optional[Path] = None) -> Path:
         preload = _PRELOAD_ORDER_LINUX
         load = lambda p: ctypes.CDLL(p, mode=ctypes.RTLD_GLOBAL)  # noqa: E731
 
-    core = _core_lib_name()
     for name in preload:
         path = lib_dir / name
         if not path.exists():
-            if name == core:
-                raise FileNotFoundError(f"Missing required library: {path}")
-            logger.warning(f"Optional SDK lib missing: {path}")
             continue
-        load(str(path))
+        try:
+            load(str(path))
+        except Exception as err:
+            logger.warning(f"Could not load SDK lib {path}: {err}")
 
     return lib_dir
 
@@ -104,8 +116,9 @@ class NativeZKFP:
 
     def __init__(self, lib_dir: Optional[Path] = None):
         self.lib_dir = ensure_library_path(lib_dir)
-        core_path = self.lib_dir / _core_lib_name()
         if _IS_WINDOWS:
+            core_name = _find_core_windows_lib(self.lib_dir) or "libzkfp.dll"
+            core_path = self.lib_dir / core_name
             self._lib = ctypes.WinDLL(str(core_path))
         else:
             self._lib = ctypes.CDLL(str(core_path))

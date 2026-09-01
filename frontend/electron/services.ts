@@ -439,8 +439,10 @@ export class ServiceSupervisor {
   }
 
   private hasWindowsSdk(): boolean {
-    const dll = path.join(this.resources.sdkWindows, 'libzkfp.dll')
-    return fs.existsSync(dll)
+    const dll1 = path.join(this.resources.sdkWindows, 'libzkfp.dll')
+    const dll2 = path.join(this.resources.sdkWindows, 'zkfputil.dll')
+    const dll3 = path.join(this.resources.sdkWindows, 'libzkfpmodulecap.dll')
+    return fs.existsSync(dll1) || fs.existsSync(dll2) || fs.existsSync(dll3)
   }
 
   private hasLinuxSdk(): boolean {
@@ -587,13 +589,23 @@ export class ServiceSupervisor {
             const res = await httpGet(`http://127.0.0.1:${FP_PORT}/health`)
             return res.status === 200
           },
-          90_000
+          15_000
         ),
         earlyExit,
       ])
     } catch (err) {
       this.killChild(child)
-      throw err
+      const message = (err as Error).message || String(err)
+      console.warn('Fingerprint service start warning:', message)
+      const fallbackStatus: ServiceStatus = {
+        phase: 'ready',
+        detail: `Ready (fingerprint service offline).`,
+        ready: true,
+        fingerprintMock: true,
+        error: message,
+      }
+      this.emit(fallbackStatus)
+      return fallbackStatus
     } finally {
       healthSettled = true
     }
